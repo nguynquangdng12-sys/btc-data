@@ -310,6 +310,8 @@ def analyze(capital):
                 }
                 signal["valid"] = bool(kz and liq_ok and not chased)
 
+    m15_res = ltf_plan(m15, bias, liq, eqh, eql, capital, kz, 2, "M15")
+    m15_setup = m15_res["setup"]
     summary = {
         "time_vn": now_vn.strftime("%Y-%m-%d %H:%M"), "source": meta.get("source"), "data_updated_utc": meta.get("updated_utc"),
         "price": round(price, 1), "d1_trend": trend_d1, "d1_last_event": ev_d1[-1] if ev_d1 else None,
@@ -321,10 +323,112 @@ def analyze(capital):
         "atr_h1": round(atr_h1, 1), "atr_m5": round(atr_m5, 1),
         "funding_rate": meta.get("funding_rate"), "open_interest_btc": meta.get("open_interest_btc"),
         "signal": signal, "capital_assumed": capital,
+        "m15_trend": m15_res["trend"], "m15_range": m15_res.get("range"), "m15_setup": m15_setup,
+        "m15_last_events": m15_res["ev"][-3:],
     }
-    ctx = dict(h4_dt=h4["dt"], d1=d1, h1=h1, m5=m5, sw_h1=sw_h1, ev_h1=ev_h1, fv_h1=fv_h1, ob_h1=ob_h1, kv_h1=kv_h1, kv_h4=kv_h4,
+    ctx = dict(m15=m15, m15_res=m15_res, h4_dt=h4["dt"], d1=d1, h1=h1, m5=m5, sw_h1=sw_h1, ev_h1=ev_h1, fv_h1=fv_h1, ob_h1=ob_h1, kv_h1=kv_h1, kv_h4=kv_h4,
                sp_h1=sp_h1, liq=liq, eqh=eqh, eql=eql, fib=fib, zones=zones, sw_m5=sw_m5, ev_m5=ev_m5, fv_m5=fv_m5)
     return summary, ctx
+
+
+
+def ltf_plan(df, bias, liq, eqh, eql, capital, kz, n_sw=2, tf="M15"):
+    """Tìm điểm vào trên khung nhỏ: tín hiệu đang có (live) hoặc lệnh chờ (plan) tại POI gần nhất."""
+    sw = swings(df, n_sw)
+    ev, trend = structure(df, sw, n_sw)
+    fv = fvgs(df, 0.0003)
+    ob = order_blocks(df, ev)
+    a = float(atr(df).iloc[-1])
+    price = float(df["close"].iloc[-1])
+    res = {"tf": tf, "trend": trend, "sw": sw, "ev": ev, "fv": fv, "ob": ob, "atr": round(a, 1), "setup": None}
+    if not bias:
+        return res
+    hs = [x for x in sw if x["kind"] == "H"]; ls = [x for x in sw if x["kind"] == "L"]
+    rng_hi = max(x["price"] for x in hs[-4:]) if hs else float(df["high"].iloc[-60:].max())
+    rng_lo = min(x["price"] for x in ls[-4:]) if ls else float(df["low"].iloc[-60:].min())
+    eq = (rng_hi + rng_lo) / 2
+    res["range"] = [round(rng_lo, 1), round(rng_hi, 1), round(eq, 1)]
+    if bias == "down":
+        tg = sorted([q["price"] for q in liq if q["side"] == "L" and not q["swept"] and q["price"] < price] +
+                    [x["price"] for x in eql if x["price"] < price], reverse=True)
+    else:
+        tg = sorted([q["price"] for q in liq if q["side"] == "H" and not q["swept"] and q["price"] > price] +
+                    [x["price"] for x in eqh if x["price"] > price])
+
+    def build(kind, entry, sl, note, poi):
+        # SL tối thiểu: 1 ATR khung nhỏ và 0,25% giá, tránh bị nhiễu quét
+        min_risk = max(a, 0.0025 * entry)
+        if abs(entry - sl) < min_risk:
+            sl = entry + min_risk if bias == "down" else entry - min_risk
+        risk = abs(entry - sl)
+        if risk <= 0:
+            return None
+        tp1 = entry - 2 * risk if bias == "down" else entry + 2 * risk
+        cands = [t for t in tg if abs(t - entry) >= 2 * risk and ((t < entry) if bias == "down" else (t > entry))]
+        tp2 = cands[0] if cands else None
+        return {"kind": kind, "dir": "SHORT" if bias == "down" else "LONG", "entry": round(entry, 1), "sl": round(sl, 1),
+                "tp1": round(tp1, 1), "tp2": round(tp2, 1) if tp2 else None,
+                "rr_tp2": round(abs(tp2 - entry) / risk, 2) if tp2 else None,
+                "risk_pct_price": round(risk / entry * 100, 3), "sl_before_liq_60x": risk / entry < 0.012,
+                "size_btc_2pct": round(capital * 0.02 / risk, 4), "size_btc_5pct": round(capital * 0.05 / risk, 4),
+                "note": note, "poi": poi, "in_killzone": kz,
+                "dist_pct": round(abs(entry - price) / price * 100, 2)}
+
+    # 1) Tín hiệu đang có: quét thanh khoản + MSS + FVG
+    recent = df.iloc[-48:]
+    side = "H" if bias == "down" else "L"
+    swept_now = [q["name"] for q in liq if q["side"] == side and
+                 (bool((recent["high"] > q["price"]).any()) if side == "H" else bool((recent["low"] < q["price"]).any()))]
+    mss = [e for e in ev if e["dir"] == bias and e["to"] >= len(df) - 24]
+    if swept_now and mss:
+        e = mss[-1]
+        body = (df["close"] - df["open"]).abs()
+        disp = body.iloc[e["to"]] > 1.5 * body.iloc[-50:].mean()
+        gaps = [g for g in fv if g["dir"] == bias and g["i"] >= e["from"] and not g["filled"]]
+        if disp and gaps:
+            g = gaps[-1]
+            ext = float(recent["high"].max()) if bias == "down" else float(recent["low"].min())
+            sl = ext + 0.5 * a if bias == "down" else ext - 0.5 * a
+            st = build("live", g["mid"], sl, f"quét {', '.join(swept_now)} → {e['type']} {tf} + FVG",
+                       [round(g["bot"], 1), round(g["top"], 1)])
+            if st:
+                chased = (price < st["entry"] - 0.5 * (st["entry"] - st["tp1"])) if bias == "down" else \
+                         (price > st["entry"] + 0.5 * (st["tp1"] - st["entry"]))
+                st["chased"] = bool(chased)
+                st["valid"] = bool(kz and st["sl_before_liq_60x"] and not chased and (st["rr_tp2"] or 0) >= 2)
+                res["setup"] = st
+                return res
+
+    # 2) Lệnh chờ: POI gần nhất cùng hướng, nằm ở premium (Short) / discount (Long) của range khung nhỏ
+    pois = [dict(z, src="FVG") for z in fv if not z["filled"] and z["dir"] == bias] + \
+           [dict(z, src="OB") for z in ob if z["valid"] and not z["tested"] and z["dir"] == bias]
+    best = None
+    for z in pois:
+        mid = (z["top"] + z["bot"]) / 2
+        if bias == "down" and not (z["bot"] > price and mid > eq):
+            continue
+        if bias == "up" and not (z["top"] < price and mid < eq):
+            continue
+        if abs(mid - price) / price > 0.03:
+            continue
+        if best is None or abs(mid - price) < abs((best["top"] + best["bot"]) / 2 - price):
+            best = z
+    if best:
+        mid = (best["top"] + best["bot"]) / 2
+        entry = mid if best["src"] == "FVG" else (best["bot"] if bias == "down" else best["top"])
+        if bias == "down":
+            prot = [x["price"] for x in hs if x["price"] > best["top"]]
+            sl = (min(prot) if prot and min(prot) - best["top"] < 3 * a else best["top"]) + 0.5 * a
+        else:
+            prot = [x["price"] for x in ls if x["price"] < best["bot"]]
+            sl = (max(prot) if prot and best["bot"] - max(prot) < 3 * a else best["bot"]) - 0.5 * a
+        st = build("plan", entry, sl, f"lệnh chờ tại {best['src']} {tf} trong vùng " + ("premium" if bias == "down" else "discount"),
+                   [round(best["bot"], 1), round(best["top"], 1)])
+        if st:
+            st["valid"] = False
+            st["ok_rr"] = (st["rr_tp2"] or 0) >= 2
+            res["setup"] = st
+    return res
 
 
 # ---------------------------------------------------------------- vẽ
@@ -385,12 +489,15 @@ def place_right(ax, items, x, lo, hi, gap_frac=0.028):
         label(ax, x + 0.8, y, txt, col, size=7.5)
 
 
-def draw_h1(s, c, path, n=120):
+def draw_h1(s, c, path, n=120, tf="H1", plan=None):
     h1 = c["h1"]; x0 = len(h1) - n; w = h1.iloc[x0:].reset_index(drop=True)
     X = lambda i: max(i - x0, 0)  # noqa: E731
     R = []  # nhãn cột phải
     fig, ax, av = setup()
-    ymin, ymax = w["low"].min(), w["high"].max(); pad = (ymax - ymin) * 0.08
+    ymin, ymax = w["low"].min(), w["high"].max()
+    if plan:
+        ymin = min(ymin, plan["sl"], plan["tp1"], plan["entry"]); ymax = max(ymax, plan["sl"], plan["tp1"], plan["entry"])
+    pad = (ymax - ymin) * 0.08
     ax.set_ylim(ymin - pad, ymax + pad); ax.set_xlim(-1, n + 20)
 
     # kill zone
@@ -502,7 +609,17 @@ def draw_h1(s, c, path, n=120):
     plt.setp(ax.get_xticklabels(), visible=False)
 
     concl = s.get("conclusion", "")
-    ax.set_title(f"{s['source']} · H1 · {s['time_vn']} (giờ VN) · D1 {('TĂNG' if s['d1_trend']=='up' else 'GIẢM' if s['d1_trend']=='down' else '?')} · {s['premium_discount']}  {concl}",
+    if plan:
+        col_e = BLUE
+        x1 = n * 0.86
+        for name, v, col in (("Entry", plan["entry"], BLUE), ("SL", plan["sl"], DN), ("TP1 2R", plan["tp1"], UP), ("TP2", plan["tp2"], UP)):
+            if v and ax.get_ylim()[0] <= v <= ax.get_ylim()[1]:
+                ax.hlines(v, x1, n + 0.5, color=col, lw=1.8, zorder=7)
+                ax.text(x1, v, f" {name} {v:,.1f} ", color=BG, fontsize=8.5, va="center", ha="right",
+                        bbox=dict(boxstyle="round,pad=0.2", fc=col, ec=col), zorder=8)
+        ax.add_patch(plt.Rectangle((x1, min(plan["entry"], plan["sl"])), n + 0.5 - x1, abs(plan["entry"] - plan["sl"]), color=DN, alpha=0.12, zorder=1))
+        ax.add_patch(plt.Rectangle((x1, min(plan["entry"], plan["tp1"])), n + 0.5 - x1, abs(plan["tp1"] - plan["entry"]), color=UP, alpha=0.10, zorder=1))
+    ax.set_title(f"{s['source']} · {tf} · {s['time_vn']} (giờ VN) · D1 {('TĂNG' if s['d1_trend']=='up' else 'GIẢM' if s['d1_trend']=='down' else '?')} · {s['premium_discount']}  {concl}",
                  color=FG, fontsize=12, loc="left")
     from matplotlib.lines import Line2D
     from matplotlib.patches import Patch
@@ -559,6 +676,13 @@ def main():
     sg = s["signal"]
     s["conclusion"] = (f"· TÍN HIỆU {sg['dir']}" if sg and sg["valid"] else "· CHỜ")
     draw_h1(s, c, os.path.join(a.out, "chart_h1.png"))
+    r = c["m15_res"]
+    v = dict(c, h1=c["m15"], sw_h1=r["sw"], ev_h1=r["ev"], fv_h1=r["fv"], ob_h1=r["ob"], kv_h1=key_volume(c["m15"], 96),
+             sp_h1=spikes(c["m15"]), fib=None)
+    st = s["m15_setup"]
+    tag = "" if not st else (f"· {st['dir']} " + ("ĐANG CÓ TÍN HIỆU" if st["kind"] == "live" else "LỆNH CHỜ"))
+    s2 = dict(s, conclusion=tag, zones=[])
+    draw_h1(s2, v, os.path.join(a.out, "chart_m15.png"), n=160, tf="M15", plan=st)
     if sg:
         draw_m5(s, c, os.path.join(a.out, "chart_m5.png"))
     json.dump(s, open(os.path.join(a.out, "summary.json"), "w"), ensure_ascii=False, indent=1, default=str)
