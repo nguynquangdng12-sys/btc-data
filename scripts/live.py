@@ -48,12 +48,16 @@ def remote_url():
 
 
 def restore_history():
-    """Lấy plan_history.json từ nhánh live hiện tại để theo dõi lệnh chờ qua các lần chạy."""
+    """Lấy plan_history.json (theo dõi lệnh chờ) và calendar.json (cache lịch tin) từ nhánh live."""
     os.makedirs(os.path.join(ROOT, "out"), exist_ok=True)
-    r = sh("git fetch -q --depth 1 origin live && git show FETCH_HEAD:out/plan_history.json", quiet=True)
-    if r.returncode == 0 and r.stdout.strip().startswith("["):
-        open(os.path.join(ROOT, "out", "plan_history.json"), "w").write(r.stdout)
-        print("Đã khôi phục plan_history.json")
+    if sh("git fetch -q --depth 1 origin live", quiet=True).returncode:
+        print("Chưa có nhánh live")
+        return
+    for src, dst, head in (("out/plan_history.json", "out/plan_history.json", "["), ("data/calendar.json", "data/calendar.json", "{")):
+        r = sh(f"git show FETCH_HEAD:{src}", quiet=True)
+        if r.returncode == 0 and r.stdout.strip().startswith(head):
+            open(os.path.join(ROOT, dst), "w").write(r.stdout)
+            print("Đã khôi phục", src)
 
 
 def publish_live(stamp):
@@ -77,7 +81,7 @@ def publish_live(stamp):
 
 
 def commit_main(stamp):
-    sh("git add data")
+    sh("git add data/btc_*.csv data/meta.json")
     if sh("git diff --cached --quiet", quiet=True).returncode == 0:
         return
     sh("git -c user.name=btc-data-bot -c user.email=actions@users.noreply.github.com "

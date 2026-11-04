@@ -171,8 +171,8 @@ def okx_flow(host, errors):
 
     def liquidations():
         out, after = [], None
-        cutoff = (time.time() - 72 * 3600) * 1000
-        for _ in range(12):
+        cutoff = (time.time() - 30 * 3600) * 1000
+        for _ in range(30):
             q = f"{host}/api/v5/public/liquidation-orders?instType=SWAP&instFamily=BTC-USDT&state=filled&limit=100"
             if after:
                 q += f"&after={after}"
@@ -199,8 +199,15 @@ def okx_flow(host, errors):
 
     def book():
         x = get(f"{host}/api/v5/market/books-full?{inst}&sz=5000")["data"][0]
-        conv = lambda lv: [[float(p[0]), float(p[1]) * CT_VAL] for p in lv]  # noqa: E731
-        return {"ts": int(x["ts"]), "bids": conv(x["bids"]), "asks": conv(x["asks"])}
+
+        def agg(lv, down):
+            d = {}
+            for p in lv:  # gộp theo bậc 5 USD để file gọn
+                px = float(p[0]); k = (px // 5) * 5 if down else -((-px) // 5) * 5
+                d[k] = d.get(k, 0.0) + float(p[1]) * CT_VAL
+            return [[k, round(v, 3)] for k, v in sorted(d.items(), reverse=down)]
+        return {"ts": int(x["ts"]), "best_bid": float(x["bids"][0][0]), "best_ask": float(x["asks"][0][0]),
+                "bids": agg(x["bids"], True), "asks": agg(x["asks"], False)}
 
     part("funding", funding_now)
     part("funding_hist", funding_hist)
