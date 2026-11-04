@@ -671,6 +671,7 @@ def draw_m5(s, c, path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="out"); ap.add_argument("--capital", type=float, default=1000)
+    ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args(); os.makedirs(a.out, exist_ok=True)
     s, c = analyze(a.capital)
     sg = s["signal"]
@@ -686,7 +687,8 @@ def main():
     if sg:
         draw_m5(s, c, os.path.join(a.out, "chart_m5.png"))
     json.dump(s, open(os.path.join(a.out, "summary.json"), "w"), ensure_ascii=False, indent=1, default=str)
-    print(json.dumps(s, ensure_ascii=False, indent=1, default=str))
+    if not a.quiet:
+        print(json.dumps(s, ensure_ascii=False, indent=1, default=str))
 
 
 if __name__ == "__main__":

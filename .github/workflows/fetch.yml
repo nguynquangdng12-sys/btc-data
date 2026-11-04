@@ -1,5 +1,7 @@
 name: Fetch BTC candles
 
+# Tải dữ liệu OKX + phân tích + vẽ chart, đẩy kết quả lên nhánh `live`.
+# Trong cửa sổ phiên (sáng VN, London, New York) scripts/live.py tự lặp mỗi 5 phút (~55 phút/lần chạy).
 on:
   schedule:
     - cron: "*/15 * * * *"
@@ -7,33 +9,33 @@ on:
   push:
     branches: [main]
     paths:
-      - "scripts/fetch.py"
+      - "scripts/**"
       - ".github/workflows/fetch.yml"
+      - "requirements.txt"
 
 permissions:
   contents: write
 
 concurrency:
   group: fetch
-  cancel-in-progress: false
+  # push code mới thì hủy lượt đang lặp để áp dụng ngay; lịch/dispatch thì xếp hàng
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Fetch
-        run: python scripts/fetch.py
-      - name: Commit
-        run: |
-          git config user.name "btc-data-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add data
-          git diff --cached --quiet && exit 0
-          git commit -m "data: $(date -u +%Y-%m-%dT%H:%MZ)"
-          git pull --rebase origin main || true
-          git push
+          cache: pip
+      - name: Cài thư viện
+        run: pip install -q -r requirements.txt
+      - name: Tải dữ liệu + phân tích (lặp trong phiên)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/live.py
