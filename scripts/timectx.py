@@ -7,7 +7,9 @@ NYZ = ZoneInfo("America/New_York")
 
 # (tên, múi giờ, bắt đầu, kết thúc, loại)  — kz: cửa sổ giao dịch chính; sb: Silver Bullet
 SESSIONS = [
-    ("Phiên sáng (Á)", VNZ, (7, 0), (11, 0), "kz"),
+    # Phiên sáng 07:00–11:00 giờ VN theo mùa đông của Mỹ; neo theo giờ New York (19:00–23:00) để mùa hè Mỹ
+    # cả 3 phiên cùng sớm 1 tiếng, khớp với lịch gửi tin.
+    ("Phiên sáng (Á)", NYZ, (19, 0), (23, 0), "kz"),
     ("London KZ", NYZ, (2, 0), (5, 0), "kz"),
     ("New York KZ", NYZ, (7, 0), (10, 0), "kz"),
     ("Silver Bullet London", NYZ, (3, 0), (4, 0), "sb"),

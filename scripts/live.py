@@ -1,7 +1,7 @@
 """Vòng chạy trên GitHub Actions: tải dữ liệu -> phân tích -> đẩy kết quả lên nhánh `live`.
 
-- Trong cửa sổ phiên (sáng 06:00–11:05 giờ VN; London 01:00–05:05 và New York 06:00–10:05 giờ New York,
-  tự theo giờ mùa hè/đông của Mỹ) lặp lại mỗi 5 phút, tối đa ~55 phút mỗi lần chạy workflow.
+- Trong cửa sổ phiên (giờ New York: sáng VN 18:00–23:05, London 01:00–05:05, New York 06:00–10:05;
+  mùa đông Mỹ = 06:00–11:05, 13:00–17:05, 18:00–22:05 giờ VN) lặp lại mỗi 5 phút, tối đa ~55 phút mỗi lần chạy.
 - Ngoài phiên: chạy một lần.
 - Nhánh `live` (force-push, chỉ giữ 1 commit): out/*.png, out/summary.json, out/plan_history.json, data/*.
 - Nhánh main: commit dữ liệu tối đa mỗi ~15 phút (giữ tương thích).
@@ -18,7 +18,8 @@ from zoneinfo import ZoneInfo
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 VN = ZoneInfo("Asia/Ho_Chi_Minh")
 NY = ZoneInfo("America/New_York")
-WINDOWS = [(VN, (6, 0), (11, 5)), (NY, (1, 0), (5, 5)), (NY, (6, 0), (10, 5))]
+# (múi giờ, bắt đầu, kết thúc): phiên sáng 18:00–23:05, London 01:00–05:05, New York 06:00–10:05 (giờ New York)
+WINDOWS = [(NY, (18, 0), (23, 5)), (NY, (1, 0), (5, 5)), (NY, (6, 0), (10, 5))]
 MAX_LOOP = timedelta(minutes=55)
 
 
