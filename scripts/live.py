@@ -3,7 +3,8 @@
 - Trong cửa sổ phiên (giờ New York: sáng VN 18:00–23:05, London 01:00–05:05, New York 06:00–10:05;
   mùa đông Mỹ = 06:00–11:05, 13:00–17:05, 18:00–22:05 giờ VN) lặp lại mỗi 5 phút, tối đa ~55 phút mỗi lần chạy.
 - Ngoài phiên: chạy một lần.
-- Nhánh `live` (force-push, chỉ giữ 1 commit): out/*.png, out/summary.json, out/plan_history.json, data/*.
+- Nhánh `live` (force-push, chỉ giữ 1 commit): out/*.png, out/summary.json, out/plan_history.json, out/notify_state.json, data/*.
+- Sau mỗi lần phân tích thành công: scripts/notify.py gửi cảnh báo Telegram (nếu có secret).
 - Nhánh main: commit dữ liệu tối đa mỗi ~15 phút (giữ tương thích).
 """
 import os
@@ -54,7 +55,8 @@ def restore_history():
     if sh("git fetch -q --depth 1 origin live", quiet=True).returncode:
         print("Chưa có nhánh live")
         return
-    for src, dst, head in (("out/plan_history.json", "out/plan_history.json", "["), ("data/calendar.json", "data/calendar.json", "{")):
+    for src, dst, head in (("out/plan_history.json", "out/plan_history.json", "["), ("data/calendar.json", "data/calendar.json", "{"),
+                           ("out/notify_state.json", "out/notify_state.json", "{")):
         r = sh(f"git show FETCH_HEAD:{src}", quiet=True)
         if r.returncode == 0 and r.stdout.strip().startswith(head):
             open(os.path.join(ROOT, dst), "w").write(r.stdout)
@@ -108,8 +110,13 @@ def run_once(it):
     if r.returncode:
         print("analyze lỗi: vẫn đẩy dữ liệu, kèm cờ lỗi")
         open(os.path.join(ROOT, "out", "ANALYZE_FAILED"), "w").write(stamp)
-    elif os.path.exists(os.path.join(ROOT, "out", "ANALYZE_FAILED")):
-        os.remove(os.path.join(ROOT, "out", "ANALYZE_FAILED"))
+    else:
+        if os.path.exists(os.path.join(ROOT, "out", "ANALYZE_FAILED")):
+            os.remove(os.path.join(ROOT, "out", "ANALYZE_FAILED"))
+        try:  # cảnh báo Telegram; lỗi ở đây không được làm hỏng lượt chạy
+            subprocess.run([sys.executable, "scripts/notify.py"], cwd=ROOT, timeout=120)
+        except Exception as e:  # noqa: BLE001
+            print("notify lỗi:", e)
     publish_live(stamp)
     if it % 3 == 0:
         commit_main(stamp)
