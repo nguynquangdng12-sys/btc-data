@@ -1,0 +1,1308 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// BTC Sổ tay ICT/SMC – bản TradingView của hệ thống phân tích tự động (kho btc-data).
+// Dùng tốt nhất trên OKX:BTCUSDT.P khung M15 (khung tìm entry). Vùng OB/FVG lấy từ khung H1.
+// Vẽ: cấu trúc HH/LH/HL/LL + BOS/CHoCH, OB/FVG H1 có chấm điểm /8, thanh khoản (PDH/PDL, PWH/PWL, đỉnh/đáy phiên, EQH/EQL),
+// giá mở cửa (ngày, NY midnight, NY 08:30, tuần, tháng), phiên/Silver Bullet/ICT macro, VWAP ngày/tuần, AVWAP con sóng D1,
+// Fibonacci + OTE, Key Volume H1/H4, Volume Profile, VSA, phân kỳ RSI, SMT BTC/ETH, lệnh M15 (live/plan) với Entry/SL/TP,
+// khối lượng theo rủi ro, checklist 8 mục + quy tắc cứng, theo dõi lệnh chờ và cảnh báo alert().
+// Đây là công cụ hỗ trợ phân tích, không phải lời khuyên đầu tư.
+
+//@version=6
+indicator("BTC Sổ tay ICT/SMC", shorttitle = "BTC Sổ tay", overlay = true, max_bars_back = 5000, max_boxes_count = 500, max_lines_count = 500, max_labels_count = 500, max_polylines_count = 20)
+
+// ============================================================ MÀU (giống chart gửi hằng ngày)
+C_UP   = #26a69a
+C_DN   = #ef5350
+C_BLUE = #42a5f5
+C_YEL  = #ffca28
+C_PURP = #ab47bc
+C_GRAY = #8a8f98
+C_ORG  = #ff9800
+C_CYAN = #26c6da
+C_PINK = #f06292
+C_FG   = #d7dae0
+C_BG   = #0f1117
+TZ     = "America/New_York"
+TZVN   = "Asia/Ho_Chi_Minh"
+
+// ============================================================ INPUT
+G1 = "1. Cấu trúc khung chart (M15)"
+swLen      = input.int(2, "Swing (số nến mỗi bên)", minval = 1, maxval = 10, group = G1)
+showSwLb   = input.bool(true, "Nhãn HH / LH / HL / LL", group = G1)
+showBos    = input.bool(true, "BOS / CHoCH", group = G1)
+showLtfFvg = input.bool(true, "FVG khung chart", group = G1)
+ltfFvgMin  = input.float(0.03, "FVG khung chart tối thiểu (%)", step = 0.01, group = G1)
+
+G2 = "2. Vùng khung lớn (H1) & chấm điểm"
+htfTf      = input.timeframe("60", "Khung vùng", group = G2)
+htfSw      = input.int(3, "Swing khung vùng", minval = 1, group = G2)
+fvgMin     = input.float(0.05, "FVG khung vùng tối thiểu (%)", step = 0.01, group = G2)
+showHtfZ   = input.bool(true, "Vẽ OB / FVG khung vùng", group = G2)
+zoneMaxDist = input.float(4.0, "Chỉ hiện vùng cách giá ≤ (%)", step = 0.5, group = G2)
+showFib    = input.bool(true, "Fibonacci + OTE (0.618–0.79)", group = G2)
+showKV     = input.bool(true, "Key Volume H1 / H4", group = G2)
+macroScore = input.int(0, "Điểm vĩ mô (+1 ủng hộ tăng / 0 / −1 ủng hộ giảm)", minval = -1, maxval = 1, group = G2, tooltip = "Bạn tự chấm sau khi đọc tin. Vùng cùng hướng vĩ mô được +1, ngược hướng −1 (tối đa 8).")
+
+G3 = "3. Thanh khoản & giá mở cửa"
+showLiq    = input.bool(true, "PDH/PDL, PWH/PWL, đỉnh/đáy phiên, EQH/EQL", group = G3)
+showOpens  = input.bool(true, "Giá mở cửa: ngày (07:00 VN), NY midnight, NY 08:30, tuần, tháng", group = G3)
+eqTol      = input.float(0.1, "Sai số đỉnh/đáy bằng nhau (%)", step = 0.05, group = G3)
+
+G4 = "4. Phiên & thời gian (neo giờ New York, tự đổi giờ mùa hè)"
+showSess   = input.bool(true, "Tô nền phiên sáng (Á) / London KZ / New York KZ", group = G4)
+showSB     = input.bool(true, "Silver Bullet", group = G4)
+showMacro  = input.bool(true, "ICT macro", group = G4)
+newsBlock  = input.bool(false, "Đang trong ±30 phút tin lớn (bật tay khi có CPI/FOMC/NFP…)", group = G4)
+
+G5 = "5. VWAP & Volume Profile"
+showVwapD  = input.bool(true, "VWAP ngày", group = G5)
+showVwapW  = input.bool(true, "VWAP tuần", group = G5)
+showAvwap  = input.bool(true, "AVWAP từ đỉnh/đáy con sóng D1", group = G5)
+showVP     = input.bool(true, "Volume Profile", group = G5)
+vpBars     = input.int(480, "Volume Profile: số nến (M15: 480 ≈ 5 ngày)", minval = 50, maxval = 4000, group = G5)
+vpBins     = input.int(70, "Volume Profile: số mức giá", minval = 20, maxval = 120, group = G5)
+vpWidth    = input.int(40, "Volume Profile: độ rộng (nến)", minval = 10, maxval = 150, group = G5)
+
+G6 = "6. Dấu chân cá mập & SMT"
+oiSym      = input.symbol("OKX:BTCUSDT.P_OI", "Open Interest", group = G6)
+spotSym    = input.symbol("OKX:BTCUSDT", "Spot (tính basis ≈ funding)", group = G6)
+cbSym      = input.symbol("COINBASE:BTCUSD", "Coinbase (premium)", group = G6)
+ethSym     = input.symbol("OKX:ETHUSDT.P", "ETH (SMT)", group = G6)
+ltfDelta   = input.timeframe("1", "Khung con tính CVD (taker ước lượng)", group = G6)
+basisHi    = input.float(0.05, "Basis cao → long đông (%)", step = 0.01, group = G6)
+basisLo    = input.float(-0.02, "Basis âm → short đông (%)", step = 0.01, group = G6)
+showVsa    = input.bool(true, "Đánh dấu nến VSA (volume đột biến)", group = G6)
+vsaMult    = input.float(2.5, "VSA: volume ≥ × TB20", step = 0.1, group = G6)
+showDiv    = input.bool(true, "Đánh dấu phân kỳ RSI / SMT", group = G6)
+
+G7 = "7. Lệnh & khối lượng"
+capital    = input.float(1000, "Vốn (USDT)", group = G7)
+ctVal      = input.float(0.01, "1 hợp đồng = (BTC)", step = 0.001, group = G7)
+maxRiskPct = input.float(1.2, "Risk tối đa % giá (SL trước thanh lý 60x)", step = 0.1, group = G7)
+minRR      = input.float(2.0, "R:R TP2 tối thiểu", step = 0.1, group = G7)
+showSetup  = input.bool(true, "Vẽ Entry / SL / TP", group = G7)
+
+G8 = "8. Bảng & cảnh báo"
+showTable  = input.bool(true, "Bảng tổng hợp", group = G8)
+showChk    = input.bool(true, "Chi tiết checklist trong bảng", group = G8)
+showPlans  = input.bool(true, "Theo dõi lệnh chờ trong bảng", group = G8)
+tablePos   = input.string("Trên phải", "Vị trí bảng", options = ["Trên phải", "Dưới phải", "Trên trái", "Dưới trái"], group = G8)
+tableSize  = input.string("Nhỏ", "Cỡ chữ bảng", options = ["Rất nhỏ", "Nhỏ", "Vừa"], group = G8)
+alSetup    = input.bool(true, "Cảnh báo: tín hiệu / lệnh chờ / CHUẨN BỊ / khớp / TP / SL / hủy", group = G8)
+alLiq      = input.bool(false, "Cảnh báo: quét thanh khoản", group = G8)
+alStruct   = input.bool(false, "Cảnh báo: BOS / CHoCH khung chart", group = G8)
+
+// ============================================================ HÀM TIỆN ÍCH
+fmt(float x) => na(x) ? "–" : str.tostring(x, "#,###.0")
+fmt0(float x) => na(x) ? "–" : str.tostring(x, "#,###")
+fpc(float x, int d) => na(x) ? "–" : str.tostring(x, d == 3 ? "+0.000;-0.000" : d == 2 ? "+0.00;-0.00" : "+0.0;-0.0") + "%"
+arrow(int t) => t == 1 ? "↑" : t == -1 ? "↓" : "–"
+sgn(int s) => s > 0 ? "+" : s < 0 ? "−" : "0"
+vnTime(int t) => na(t) ? "–" : str.format_time(t, "HH:mm", TZVN)
+vnDT(int t) => na(t) ? "–" : str.format_time(t, "dd/MM HH:mm", TZVN)
+tfName(string tf) =>
+    switch tf
+        "1" => "M1"
+        "3" => "M3"
+        "5" => "M5"
+        "15" => "M15"
+        "30" => "M30"
+        "60" => "H1"
+        "120" => "H2"
+        "240" => "H4"
+        "D" => "D1"
+        "1D" => "D1"
+        "W" => "W1"
+        => tf
+TFC = tfName(timeframe.period)
+TFH = tfName(htfTf)
+tfMs = timeframe.in_seconds() * 1000
+htfMs = timeframe.in_seconds(htfTf) * 1000
+barsFor(float hours) => math.max(1, int(math.round(hours * 3600.0 / timeframe.in_seconds())))
+n4  = barsFor(4)
+n8  = barsFor(8)
+n24 = barsFor(24)
+
+inS(string s) => not na(time(timeframe.period, s + ":1234567", TZ))
+
+// ============================================================ UDT
+type Liq
+    string name
+    float  price
+    int    side        // 1 = đỉnh (thanh khoản mua, BSL), -1 = đáy (SSL)
+    int    t0          // thời điểm bắt đầu vẽ
+    int    tc          // thời điểm tạo (bắt đầu xét quét)
+    bool   swept = false
+    int    tSwept
+    line   ln
+    label  lb
+
+type Zone
+    int    dir         // 1 tăng (cầu), -1 giảm (cung)
+    string src         // "FVG" / "OB"
+    float  top
+    float  bot
+    int    t0
+    int    bi
+    int    cb          // nến/HTF-bar tạo (bỏ qua khi xét mitigate)
+    bool   tested = false
+    int    score = 0
+    box    bx
+    label  lb
+
+type Sw
+    float price
+    int   bi
+    int   t
+    float rsi
+    float cvd
+    float eth
+
+type Setup
+    string kind
+    int    dir
+    float  entry
+    float  sl
+    float  tp1
+    float  tp2
+    float  rr2
+    float  riskPct
+    bool   chased = false
+    bool   valid = false
+    string note
+    float  poiTop
+    float  poiBot
+    int    bi
+
+type Plan
+    int    dir
+    string kind
+    float  entry
+    float  sl
+    float  tp1
+    float  tp2
+    int    tCreate
+    int    tStart
+    int    tExp
+    string win
+    int    d1
+    string status = "CHỜ KHỚP"
+    bool   filled = false
+    bool   tp1Hit = false
+    bool   done = false
+    bool   warned = false
+
+// ============================================================ THỜI GIAN: PHIÊN / SILVER BULLET / MACRO
+inAsia = inS("1900-2300")
+inLon  = inS("0200-0500")
+inNY   = inS("0700-1000")
+inSBL  = inS("0300-0400")
+inSBAM = inS("1000-1100")
+inSBPM = inS("1400-1500")
+inMacro = inS("0233-0300") or inS("0403-0430") or inS("0850-0910") or inS("0950-1010") or inS("1050-1110") or inS("1150-1210") or inS("1310-1340") or inS("1515-1545")
+inKZ   = inAsia or inLon or inNY
+kzName = inAsia ? "Phiên sáng (Á)" : inLon ? "London KZ" : inNY ? "New York KZ" : ""
+sbName = inSBL ? "Silver Bullet London" : inSBAM ? "Silver Bullet AM" : inSBPM ? "Silver Bullet PM" : ""
+
+bgcolor(showSess and inAsia ? color.new(C_CYAN, 93) : na, title = "Phiên sáng (Á)")
+bgcolor(showSess and inLon ? color.new(C_BLUE, 91) : na, title = "London KZ")
+bgcolor(showSess and inNY ? color.new(C_PURP, 90) : na, title = "New York KZ")
+bgcolor(showSB and (inSBL or inSBAM or inSBPM) ? color.new(C_YEL, 92) : na, title = "Silver Bullet")
+plotshape(showMacro and inMacro, "ICT macro", shape.square, location.top, color.new(C_ORG, 30), size = size.tiny)
+
+// Cửa sổ phiên (KZ) chứa t, hoặc phiên kế tiếp: [bắt đầu, kết thúc]
+kzWin(int t) =>
+    int y = year(t, TZ)
+    int m = month(t, TZ)
+    int d = dayofmonth(t, TZ)
+    int t2 = t + 86400000
+    int y2 = year(t2, TZ)
+    int m2 = month(t2, TZ)
+    int d2 = dayofmonth(t2, TZ)
+    int s1 = timestamp(TZ, y, m, d, 2, 0)
+    int e1 = timestamp(TZ, y, m, d, 5, 0)
+    int s2 = timestamp(TZ, y, m, d, 7, 0)
+    int e2 = timestamp(TZ, y, m, d, 10, 0)
+    int s3 = timestamp(TZ, y, m, d, 19, 0)
+    int e3 = timestamp(TZ, y, m, d, 23, 0)
+    int s4 = timestamp(TZ, y2, m2, d2, 2, 0)
+    int e4 = timestamp(TZ, y2, m2, d2, 5, 0)
+    string n1 = "London KZ"
+    string n2 = "New York KZ"
+    string n3 = "Phiên sáng (Á)"
+    int rs = s4
+    int re = e4
+    string rn = n1
+    if t < e1
+        rs := s1
+        re := e1
+        rn := n1
+    else if t < e2
+        rs := s2
+        re := e2
+        rn := n2
+    else if t < e3
+        rs := s3
+        re := e3
+        rn := n3
+    [rs, re, rn]
+
+// ============================================================ DỮ LIỆU KHUNG LỚN
+// Trạng thái 1 khung: xu hướng theo BOS/CHoCH (giá đóng cửa), swing gần nhất, range 4 swing, EMA, RSI
+f_state(int n) =>
+    float ph = ta.pivothigh(high, n, n)
+    float pl = ta.pivotlow(low, n, n)
+    var float pH = na
+    var float pL = na
+    var float lastH = na
+    var float lastL = na
+    var int lastHT = na
+    var int lastLT = na
+    var int tr = 0
+    var int evD = 0
+    var int evBos = 0
+    var float evL = na
+    var int evT = na
+    var array<float> hs4 = array.new<float>()
+    var array<float> ls4 = array.new<float>()
+    if not na(ph)
+        pH := ph
+        lastH := ph
+        lastHT := time[n]
+        hs4.push(ph)
+        if hs4.size() > 4
+            hs4.shift()
+    if not na(pl)
+        pL := pl
+        lastL := pl
+        lastLT := time[n]
+        ls4.push(pl)
+        if ls4.size() > 4
+            ls4.shift()
+    if not na(pH) and close > pH
+        evBos := tr == 1 ? 1 : 0
+        tr := 1
+        evD := 1
+        evL := pH
+        evT := time
+        pH := na
+    else if not na(pL) and close < pL
+        evBos := tr == -1 ? 1 : 0
+        tr := -1
+        evD := -1
+        evL := pL
+        evT := time
+        pL := na
+    float rHi = hs4.size() > 0 ? hs4.max() : na
+    float rLo = ls4.size() > 0 ? ls4.min() : na
+    [tr, lastH, lastL, lastHT, lastLT, evD, evBos, evL, evT, ta.ema(close, 20), ta.ema(close, 50), ta.rsi(close, 14), rHi, rLo]
+
+// Khung vùng (H1): OB, FVG, swing, phân kỳ RSI, Key Volume — trả giá trị của nến H1 ĐÃ ĐÓNG (không repaint)
+f_htf(int n, float minPct) =>
+    float ph = ta.pivothigh(high, n, n)
+    float pl = ta.pivotlow(low, n, n)
+    float r = ta.rsi(close, 14)
+    var float pendH = na
+    var int pendHb = na
+    var float pendL = na
+    var int pendLb = na
+    var int tr = 0
+    var float lastH = na
+    var int lastHT = na
+    var float lastL = na
+    var int lastLT = na
+    var float prevH = na
+    var float prevHR = na
+    var int prevHB = na
+    var float prevL = na
+    var float prevLR = na
+    var int prevLB = na
+    var int divBearT = na
+    var int divBullT = na
+    int newH = 0
+    int newL = 0
+    if not na(ph)
+        float rr = r[n]
+        int pb = bar_index - n
+        divBearT := not na(prevH) and ph > prevH and rr < prevHR - 2 and pb - prevHB <= 80 ? time[n] : na
+        prevH := ph
+        prevHR := rr
+        prevHB := pb
+        pendH := ph
+        pendHb := pb
+        lastH := ph
+        lastHT := time[n]
+        newH := 1
+    if not na(pl)
+        float rr = r[n]
+        int pb = bar_index - n
+        divBullT := not na(prevL) and pl < prevL and rr > prevLR + 2 and pb - prevLB <= 80 ? time[n] : na
+        prevL := pl
+        prevLR := rr
+        prevLB := pb
+        pendL := pl
+        pendLb := pb
+        lastL := pl
+        lastLT := time[n]
+        newL := 1
+    int evD = 0
+    int evBos = 0
+    float evL = na
+    float obTop = na
+    float obBot = na
+    int obTime = na
+    if not na(pendH) and close > pendH
+        evD := 1
+        evBos := tr == 1 ? 1 : 0
+        evL := pendH
+        tr := 1
+        int back = math.min(bar_index - pendHb + 2, 300)
+        for j = 1 to back
+            if close[j] < open[j]
+                obTop := high[j]
+                obBot := low[j]
+                obTime := time[j]
+                break
+        pendH := na
+    else if not na(pendL) and close < pendL
+        evD := -1
+        evBos := tr == -1 ? 1 : 0
+        evL := pendL
+        tr := -1
+        int back = math.min(bar_index - pendLb + 2, 300)
+        for j = 1 to back
+            if close[j] > open[j]
+                obTop := high[j]
+                obBot := low[j]
+                obTime := time[j]
+                break
+        pendL := na
+    int fD = 0
+    float fTop = na
+    float fBot = na
+    if low > high[2] and (low - high[2]) / high[2] * 100 > minPct
+        fD := 1
+        fTop := low
+        fBot := high[2]
+    else if high < low[2] and (low[2] - high) / high * 100 > minPct
+        fD := -1
+        fTop := low[2]
+        fBot := high
+    int kvOff = ta.highestbars(volume, 72)
+    float kvT = high[-kvOff]
+    float kvB = low[-kvOff]
+    [tr[1], evD[1], evBos[1], evL[1], obTop[1], obBot[1], obTime[1], fD[1], fTop[1], fBot[1], time[2], newH[1], newL[1], lastH[1], lastHT[1], lastL[1], lastLT[1], divBearT[1], divBullT[1], kvT[1], kvB[1], time[1], close[1], high[1], low[1]]
+
+f_kv(int len) =>
+    int off = ta.highestbars(volume, len)
+    [high[-off], low[-off]]
+
+f_wy() =>
+    [ta.highest(high, 75)[15], ta.lowest(low, 75)[15], ta.lowest(low, 15), ta.highest(high, 15)]
+
+[d1Tr, d1H, d1L, d1HT, d1LT, d1EvD, d1EvBos, d1EvL, d1EvT, d1E20, d1E50, d1R, d1RHi, d1RLo] = request.security(syminfo.tickerid, "D", f_state(2))
+[h4Tr, h4H, h4L, h4HT, h4LT, h4EvD, h4EvBos, h4EvL, h4EvT, h4E20, h4E50, h4R, h4RHi, h4RLo] = request.security(syminfo.tickerid, "240", f_state(2))
+[h1Tr, h1H, h1L, h1HT, h1LT, h1EvD, h1EvBos, h1EvL, h1EvT, h1E20, h1E50, h1R, h1RHi, h1RLo] = request.security(syminfo.tickerid, "60", f_state(3))
+[m15Tr, m15H, m15L, m15HT, m15LT, m15EvD, m15EvBos, m15EvL, m15EvT, m15E20, m15E50, m15R, m15RHi, m15RLo] = request.security(syminfo.tickerid, "15", f_state(2))
+[m5Tr, m5H, m5L, m5HT, m5LT, m5EvD, m5EvBos, m5EvL, m5EvT, m5E20, m5E50, m5R, m5RHi, m5RLo] = request.security(syminfo.tickerid, "5", f_state(2))
+
+[hTr, hEvD, hEvBos, hEvL, hObT, hObB, hObTime, hFD, hFT, hFB, hFTime, hNewH, hNewL, hLastH, hLastHT, hLastL, hLastLT, hDivBearT, hDivBullT, hKvT, hKvB, hBarT, hC, hH, hL] = request.security(syminfo.tickerid, htfTf, f_htf(htfSw, fvgMin), lookahead = barmerge.lookahead_on)
+[kv4T, kv4B] = request.security(syminfo.tickerid, "240", f_kv(60))
+[wyHi, wyLo, wyLLo, wyLHi] = request.security(syminfo.tickerid, "240", f_wy())
+[pdh, pdl, dOpen, d1Prior] = request.security(syminfo.tickerid, "D", [high[1], low[1], open, close[40]], lookahead = barmerge.lookahead_on)
+[pwh, pwl, wOpen] = request.security(syminfo.tickerid, "W", [high[1], low[1], open], lookahead = barmerge.lookahead_on)
+mOpen = request.security(syminfo.tickerid, "M", open, lookahead = barmerge.lookahead_on)
+
+htfNew = not na(hBarT) and hBarT != nz(hBarT[1])
+bias = d1Tr
+eqD1 = (d1H + d1L) / 2
+pdD1 = close > eqD1 ? "premium" : "discount"
+
+// ============================================================ THANH KHOẢN
+var array<Liq> liqs = array.new<Liq>()
+
+liqColor(int side) => side == 1 ? C_DN : C_UP
+
+addLiq(string nm, float p, int side, int t0) =>
+    if liqs.size() > 0
+        for i = liqs.size() - 1 to 0
+            Liq o = liqs.get(i)
+            if o.name == nm
+                if not na(o.ln)
+                    o.ln.delete()
+                if not na(o.lb)
+                    o.lb.delete()
+                liqs.remove(i)
+    if not na(p)
+        Liq q = Liq.new(nm, p, side, t0, time)
+        if showLiq
+            q.ln := line.new(t0, p, time, p, xloc.bar_time, color = color.new(liqColor(side), 15), style = line.style_dashed, width = 1)
+            q.lb := label.new(time, p, nm + " " + fmt0(p), xloc.bar_time, color = color.new(C_BG, 100), textcolor = liqColor(side), style = label.style_label_left, size = size.small)
+        liqs.push(q)
+
+getLiq(string nm) =>
+    Liq res = na
+    for q in liqs
+        if q.name == nm
+            res := q
+    res
+
+newDay   = timeframe.change("D")
+newWeek  = timeframe.change("W")
+newMonth = timeframe.change("M")
+
+if newDay
+    addLiq("PDH", pdh, 1, time)
+    addLiq("PDL", pdl, -1, time)
+if newWeek
+    addLiq("PWH", pwh, 1, time)
+    addLiq("PWL", pwl, -1, time)
+
+// Đỉnh/đáy phiên vừa kết thúc
+sessHL(bool inSess) =>
+    var float hi = na
+    var float lo = na
+    var int t0 = na
+    if inSess and not inSess[1]
+        hi := high
+        lo := low
+        t0 := time
+    else if inSess
+        hi := math.max(hi, high)
+        lo := math.min(lo, low)
+    [hi, lo, t0, inSess[1] and not inSess]
+
+[aHi, aLo, aT, aEnd] = sessHL(inAsia)
+[lHi, lLo, lT, lEnd] = sessHL(inLon)
+[nHi, nLo, nT, nEnd] = sessHL(inNY)
+if aEnd
+    addLiq("Á H", aHi, 1, aT)
+    addLiq("Á L", aLo, -1, aT)
+if lEnd
+    addLiq("London H", lHi, 1, lT)
+    addLiq("London L", lLo, -1, lT)
+if nEnd
+    addLiq("NY H", nHi, 1, nT)
+    addLiq("NY L", nLo, -1, nT)
+
+// Đỉnh/đáy bằng nhau (EQH/EQL) theo swing khung vùng
+var array<float> hSwP = array.new<float>()
+var array<int>   hSwT = array.new<int>()
+var array<float> lSwP = array.new<float>()
+var array<int>   lSwT = array.new<int>()
+if htfNew and hNewH == 1
+    for i = 0 to math.max(hSwP.size() - 1, 0)
+        if hSwP.size() == 0
+            break
+        float pa = hSwP.get(i)
+        if math.abs(pa - hLastH) / pa * 100 <= eqTol and hLastHT - hSwT.get(i) >= 3 * htfMs
+            float lv = math.max(pa, hLastH)
+            addLiq("EQH $$$ " + fmt0(lv), lv, 1, hSwT.get(i))
+    hSwP.push(hLastH)
+    hSwT.push(hLastHT)
+    if hSwP.size() > 10
+        hSwP.shift()
+        hSwT.shift()
+if htfNew and hNewL == 1
+    for i = 0 to math.max(lSwP.size() - 1, 0)
+        if lSwP.size() == 0
+            break
+        float pa = lSwP.get(i)
+        if math.abs(pa - hLastL) / pa * 100 <= eqTol and hLastLT - lSwT.get(i) >= 3 * htfMs
+            float lv = math.min(pa, hLastL)
+            addLiq("EQL $$$ " + fmt0(lv), lv, -1, lSwT.get(i))
+    lSwP.push(hLastL)
+    lSwT.push(hLastLT)
+    if lSwP.size() > 10
+        lSwP.shift()
+        lSwT.shift()
+
+// Cập nhật quét thanh khoản
+string sweptMsg = ""
+if liqs.size() > 0
+    for i = liqs.size() - 1 to 0
+        Liq q = liqs.get(i)
+        if not q.swept and time >= q.tc
+            bool hit = q.side == 1 ? high > q.price : low < q.price
+            if hit
+                q.swept := true
+                q.tSwept := time
+                sweptMsg += (sweptMsg == "" ? "" : ", ") + q.name
+                if not na(q.ln)
+                    q.ln.set_x2(time)
+                    q.ln.set_color(color.new(C_GRAY, 40))
+                    q.ln.set_style(line.style_dotted)
+        if not q.swept and not na(q.ln)
+            q.ln.set_x2(time)
+        // dọn: mức đã quét quá 48 giờ, hoặc EQ cũ quá 10 ngày
+        if (q.swept and time - q.tSwept > 48 * 3600000) or time - q.tc > 10 * 86400000
+            if not na(q.ln)
+                q.ln.delete()
+            if not na(q.lb)
+                q.lb.delete()
+            liqs.remove(i)
+
+// ============================================================ GIÁ MỞ CỬA
+var int dayT = na
+var int weekT = na
+var int monthT = na
+var float nyMid = na
+var int nyMidT = na
+var float ny830 = na
+var int ny830T = na
+if newDay
+    dayT := time
+if newWeek
+    weekT := time
+if newMonth
+    monthT := time
+nyDom = dayofmonth(time, TZ)
+if nyDom != nyDom[1]
+    nyMid := open
+    nyMidT := time
+    ny830 := na
+    ny830T := na
+t830 = timestamp(TZ, year(time, TZ), month(time, TZ), dayofmonth(time, TZ), 8, 30)
+if time <= t830 and time_close > t830
+    ny830 := open
+    ny830T := time
+
+// ============================================================ VWAP
+vwapD = ta.vwap(hlc3, newDay)
+vwapW = ta.vwap(hlc3, newWeek)
+plot(showVwapD ? vwapD : na, "VWAP ngày", color.new(C_PINK, 0), 1, plot.style_linebr)
+plot(showVwapW ? vwapW : na, "VWAP tuần", color.new(C_CYAN, 20), 1, plot.style_circles)
+
+// ============================================================ CẤU TRÚC KHUNG CHART
+rsi14  = ta.rsi(close, 14)
+atrC   = ta.sma(ta.tr(true), 14)
+body   = math.abs(close - open)
+bodyAvg = ta.sma(body, 50)
+hi48   = ta.highest(high, 48)
+lo48   = ta.lowest(low, 48)
+
+// Dòng tiền ước lượng (dùng cho CVD phân kỳ + điểm cá mập)
+array<float> dArr = request.security_lower_tf(syminfo.tickerid, ltfDelta, close > open ? volume : close < open ? -volume : 0.0, ignore_invalid_timeframe = true)
+float barDelta = dArr.size() > 0 ? dArr.sum() : (close > open ? volume : close < open ? -volume : 0.0)
+cvd = ta.cum(barDelta)
+[ethH, ethL] = request.security(ethSym, timeframe.period, [high, low], ignore_invalid_symbol = true)
+ethHW = ta.highest(ethH, 2 * swLen + 1)
+ethLW = ta.lowest(ethL, 2 * swLen + 1)
+
+var array<Sw> shs = array.new<Sw>()
+var array<Sw> sls = array.new<Sw>()
+var float pendH = na
+var int pendHb = na
+var float pendL = na
+var int pendLb = na
+var int ltfTr = 0
+var int lastEvDir = 0
+var int lastEvTo = na
+var int lastEvFrom = na
+var string lastEvType = ""
+var float lastEvBody = na
+var int smtBearB = na
+var int smtBullB = na
+var int divBearB = na
+var int divBullB = na
+var int cvdDivSign = 0
+var int cvdDivB = na
+
+ph = ta.pivothigh(high, swLen, swLen)
+pl = ta.pivotlow(low, swLen, swLen)
+if not na(ph)
+    int pb = bar_index - swLen
+    Sw s = Sw.new(ph, pb, time[swLen], rsi14[swLen], cvd[swLen], ethHW)
+    string lb = "HH"
+    if shs.size() > 0
+        Sw a = shs.last()
+        lb := ph > a.price ? "HH" : "LH"
+        if pb - a.bi <= 80
+            divBearB := ph > a.price and s.rsi < a.rsi - 2 ? pb : na
+            bool smtB = (ph > a.price and not na(s.eth) and s.eth <= a.eth) or (ph <= a.price and not na(s.eth) and s.eth > a.eth)
+            smtBearB := smtB ? pb : na
+            if ph > a.price and s.cvd < a.cvd
+                cvdDivSign := -1
+                cvdDivB := pb
+            if showDiv and not na(divBearB)
+                label.new(pb, ph, "Div RSI", color = color.new(C_BG, 100), textcolor = C_ORG, style = label.style_label_down, size = size.tiny)
+            if showDiv and not na(smtBearB)
+                label.new(pb, ph, "\n\nSMT", color = color.new(C_BG, 100), textcolor = C_CYAN, style = label.style_label_down, size = size.tiny)
+    shs.push(s)
+    if shs.size() > 20
+        shs.shift()
+    pendH := ph
+    pendHb := pb
+    if showSwLb
+        label.new(pb, ph, lb, color = color.new(C_BG, 100), textcolor = C_FG, style = label.style_label_down, size = size.tiny)
+if not na(pl)
+    int pb = bar_index - swLen
+    Sw s = Sw.new(pl, pb, time[swLen], rsi14[swLen], cvd[swLen], ethLW)
+    string lb = "LL"
+    if sls.size() > 0
+        Sw a = sls.last()
+        lb := pl > a.price ? "HL" : "LL"
+        if pb - a.bi <= 80
+            divBullB := pl < a.price and s.rsi > a.rsi + 2 ? pb : na
+            bool smtB = (pl < a.price and not na(s.eth) and s.eth >= a.eth) or (pl >= a.price and not na(s.eth) and s.eth < a.eth)
+            smtBullB := smtB ? pb : na
+            if pl < a.price and s.cvd > a.cvd
+                cvdDivSign := 1
+                cvdDivB := pb
+            if showDiv and not na(divBullB)
+                label.new(pb, pl, "Div RSI", color = color.new(C_BG, 100), textcolor = C_ORG, style = label.style_label_up, size = size.tiny)
+            if showDiv and not na(smtBullB)
+                label.new(pb, pl, "\n\nSMT", color = color.new(C_BG, 100), textcolor = C_CYAN, style = label.style_label_up, size = size.tiny)
+    sls.push(s)
+    if sls.size() > 20
+        sls.shift()
+    pendL := pl
+    pendLb := pb
+    if showSwLb
+        label.new(pb, pl, lb, color = color.new(C_BG, 100), textcolor = C_FG, style = label.style_label_up, size = size.tiny)
+
+// Zone khung chart (FVG + OB) dùng để tìm entry
+var array<Zone> ltfZ = array.new<Zone>()
+int evDir = 0
+string evType = ""
+float evLvl = na
+int evFrom = na
+if not na(pendH) and close > pendH
+    evDir := 1
+    evType := ltfTr == 1 ? "BOS" : "CHoCH"
+    evLvl := pendH
+    evFrom := pendHb
+    ltfTr := 1
+    pendH := na
+else if not na(pendL) and close < pendL
+    evDir := -1
+    evType := ltfTr == -1 ? "BOS" : "CHoCH"
+    evLvl := pendL
+    evFrom := pendLb
+    ltfTr := -1
+    pendL := na
+if evDir != 0
+    lastEvDir := evDir
+    lastEvTo := bar_index
+    lastEvFrom := evFrom
+    lastEvType := evType
+    lastEvBody := body
+    color ec = evDir == 1 ? C_UP : C_DN
+    if showBos
+        line.new(evFrom, evLvl, bar_index, evLvl, color = ec, style = evType == "BOS" ? line.style_solid : line.style_dashed, width = 1)
+        label.new(int((evFrom + bar_index) / 2), evLvl, evType, color = color.new(C_BG, 100), textcolor = ec, style = evDir == 1 ? label.style_label_down : label.style_label_up, size = size.tiny)
+    // OB khung chart: nến ngược màu cuối cùng trước cú phá
+    int back = math.min(bar_index - evFrom + 2, 300)
+    for j = 1 to back
+        bool opp = evDir == 1 ? close[j] < open[j] : close[j] > open[j]
+        if opp
+            ltfZ.push(Zone.new(evDir, "OB", high[j], low[j], time[j], bar_index - j, bar_index))
+            break
+// FVG khung chart
+if low > high[2] and (low - high[2]) / high[2] * 100 > ltfFvgMin
+    Zone z = Zone.new(1, "FVG", low, high[2], time[1], bar_index - 1, bar_index)
+    if showLtfFvg
+        z.bx := box.new(bar_index - 1, low, bar_index, high[2], border_color = color.new(C_UP, 70), bgcolor = color.new(C_UP, 88))
+    ltfZ.push(z)
+if high < low[2] and (low[2] - high) / high * 100 > ltfFvgMin
+    Zone z = Zone.new(-1, "FVG", low[2], high, time[1], bar_index - 1, bar_index)
+    if showLtfFvg
+        z.bx := box.new(bar_index - 1, low[2], bar_index, high, border_color = color.new(C_DN, 70), bgcolor = color.new(C_DN, 88))
+    ltfZ.push(z)
+if ltfZ.size() > 0
+    for i = ltfZ.size() - 1 to 0
+        Zone z = ltfZ.get(i)
+        bool kill = false
+        if bar_index > z.cb
+            if z.src == "FVG"
+                kill := z.dir == 1 ? low <= z.bot : high >= z.top
+            else
+                kill := z.dir == 1 ? close < z.bot : close > z.top
+                if not kill
+                    z.tested := z.tested or (z.dir == 1 ? low <= z.top : high >= z.bot)
+        if kill or bar_index - z.bi > 400
+            if not na(z.bx)
+                z.bx.delete()
+            ltfZ.remove(i)
+        else if not na(z.bx)
+            z.bx.set_right(bar_index)
+    if ltfZ.size() > 60
+        Zone z0 = ltfZ.shift()
+        if not na(z0.bx)
+            z0.bx.delete()
+
+// ============================================================ VÙNG KHUNG LỚN (H1)
+var array<Zone> htfZ = array.new<Zone>()
+if htfNew
+    // mitigate bằng nến H1 vừa đóng
+    if htfZ.size() > 0
+        for i = htfZ.size() - 1 to 0
+            Zone z = htfZ.get(i)
+            if z.cb != hBarT
+                bool kill = z.src == "FVG" ? (z.dir == 1 ? hL <= z.bot : hH >= z.top) : (z.dir == 1 ? hC < z.bot : hC > z.top)
+                if kill
+                    if not na(z.bx)
+                        z.bx.delete()
+                    if not na(z.lb)
+                        z.lb.delete()
+                    htfZ.remove(i)
+    if hFD != 0 and not na(hFT)
+        Zone z = Zone.new(hFD, "FVG", hFT, hFB, hFTime, bar_index, hBarT)
+        if showHtfZ
+            z.bx := box.new(hFTime, hFT, time, hFB, xloc = xloc.bar_time, border_color = color.new(hFD == 1 ? C_UP : C_DN, 30), bgcolor = color.new(hFD == 1 ? C_UP : C_DN, 85))
+        htfZ.push(z)
+    if hEvD != 0 and not na(hObT)
+        Zone z = Zone.new(hEvD, "OB", hObT, hObB, hObTime, bar_index, hBarT)
+        if showHtfZ
+            z.bx := box.new(hObTime, hObT, time, hObB, xloc = xloc.bar_time, border_color = color.new(hEvD == 1 ? C_UP : C_DN, 0), bgcolor = color.new(hEvD == 1 ? C_UP : C_DN, 90), border_width = 2)
+        htfZ.push(z)
+    if htfZ.size() > 40
+        Zone z0 = htfZ.shift()
+        if not na(z0.bx)
+            z0.bx.delete()
+        if not na(z0.lb)
+            z0.lb.delete()
+// FVG H1 lấp bằng râu nến chart; mở rộng hộp tới hiện tại
+if htfZ.size() > 0
+    for i = htfZ.size() - 1 to 0
+        Zone z = htfZ.get(i)
+        bool kill = z.src == "FVG" and time > z.t0 + 2 * htfMs and (z.dir == 1 ? low <= z.bot : high >= z.top)
+        if kill
+            if not na(z.bx)
+                z.bx.delete()
+            if not na(z.lb)
+                z.lb.delete()
+            htfZ.remove(i)
+        else if not na(z.bx)
+            z.bx.set_right(time)
+
+// Fibonacci con sóng H1 gần nhất
+fibUp = hLastLT < hLastHT
+fibHi = hLastH
+fibLo = hLastL
+fibLv(float r) => fibUp ? fibHi - (fibHi - fibLo) * r : fibLo + (fibHi - fibLo) * r
+oteA = fibLv(0.618)
+oteB = fibLv(0.79)
+oteLo = math.min(oteA, oteB)
+oteHi = math.max(oteA, oteB)
+
+// Chấm điểm vùng (tối đa 7 tự động, +1/−1 vĩ mô → tối đa 8)
+scoreZone(Zone z) =>
+    float mid = (z.top + z.bot) / 2
+    int s = 1
+    string why = z.src + " " + TFH
+    if bias != 0 and ((bias == 1 and mid < eqD1) or (bias == -1 and mid > eqD1))
+        s += 2
+        why += " · đúng D1 + " + (bias == 1 ? "discount" : "premium")
+    if (hKvB <= z.top and hKvT >= z.bot) or (kv4B <= z.top and kv4T >= z.bot)
+        s += 1
+        why += " · Key Volume"
+    int side = z.dir == 1 ? -1 : 1
+    string near = ""
+    for q in liqs
+        if q.side == side and q.swept and math.abs(q.price - mid) / mid < 0.006
+            near += (near == "" ? "" : ", ") + q.name
+    if near != ""
+        s += 2
+        why += " · sau quét " + near
+    if not na(oteLo) and mid >= oteLo and mid <= oteHi
+        s += 1
+        why += " · OTE"
+    [s, why]
+
+// ============================================================ DẤU CHÂN CÁ MẬP (điểm)
+oi = request.security(oiSym, timeframe.period, close, ignore_invalid_symbol = true)
+spot = request.security(spotSym, timeframe.period, close, ignore_invalid_symbol = true)
+cbPx = request.security(cbSym, timeframe.period, close, ignore_invalid_symbol = true)
+dOi = (oi / oi[n4] - 1) * 100
+dPx = (close / close[n4] - 1) * 100
+int oiSign = 0
+string oiTxt = "không có dữ liệu OI"
+if not na(dOi)
+    if dPx > 0.3 and dOi > 0.5
+        oiSign := 1
+        oiTxt := "giá↑ OI↑: long mới vào"
+    else if dPx > 0.3 and dOi < -0.5
+        oiTxt := "giá↑ OI↓: short cover, đà tăng kém bền"
+    else if dPx < -0.3 and dOi > 0.5
+        oiSign := -1
+        oiTxt := "giá↓ OI↑: short mới vào"
+    else if dPx < -0.3 and dOi < -0.5
+        oiTxt := "giá↓ OI↓: long xả, đà giảm kém bền"
+    else if dOi > 1.0
+        oiTxt := "đi ngang, OI↑: tích tụ vị thế"
+    else if dOi < -1.0
+        oiTxt := "đi ngang, OI↓: vị thế rút ra"
+    else
+        oiTxt := "OI ít thay đổi"
+d4 = math.sum(barDelta, n4)
+d24 = math.sum(barDelta, n24)
+thr = 2 * ta.median(math.abs(barDelta), n24)
+cvdSign = d4 > thr ? 1 : d4 < -thr ? -1 : 0
+cvdDivActive = not na(cvdDivB) and bar_index - cvdDivB <= 80
+divCvdSign = cvdDivActive ? cvdDivSign : 0
+basis = (close / spot - 1) * 100
+basisAvg = ta.sma(basis, n8)
+fundSign = na(basisAvg) ? 0 : basisAvg > basisHi ? -1 : basisAvg < basisLo ? 1 : 0
+prem = (cbPx / close - 1) * 100
+premAvg = ta.sma(prem, n24)
+cbSign = na(prem) ? 0 : prem > 0.05 and premAvg > 0 ? 1 : prem < -0.05 and premAvg < 0 ? -1 : 0
+fpScore = oiSign + cvdSign + divCvdSign + fundSign + cbSign
+
+// ============================================================ VSA
+volSma = ta.sma(volume, 20)
+spike = volume >= vsaMult * volSma
+rngC = math.max(high - low, syminfo.mintick)
+upW = high - math.max(open, close)
+loW = math.min(open, close) - low
+absorb = body / rngC < 0.4
+plotshape(showVsa and spike and absorb and loW > upW, "VSA hấp thụ bán (râu dưới)", shape.diamond, location.belowbar, C_YEL, size = size.tiny)
+plotshape(showVsa and spike and absorb and loW <= upW, "VSA hấp thụ mua (râu trên)", shape.diamond, location.abovebar, C_YEL, size = size.tiny)
+plotshape(showVsa and spike and not absorb and close > open, "VSA đẩy giá tăng", shape.circle, location.belowbar, color.new(C_YEL, 30), size = size.tiny)
+plotshape(showVsa and spike and not absorb and close < open, "VSA đẩy giá giảm", shape.circle, location.abovebar, color.new(C_YEL, 30), size = size.tiny)
+
+// ============================================================ LỆNH M15: LIVE / PLAN
+f_build(string kind, int dir, float entry, float sl0, float a, string note, float pTop, float pBot) =>
+    float minRisk = math.max(a, 0.0025 * entry)
+    float sl = math.abs(entry - sl0) < minRisk ? (dir == -1 ? entry + minRisk : entry - minRisk) : sl0
+    float risk = math.abs(entry - sl)
+    float tp1 = dir == -1 ? entry - 2 * risk : entry + 2 * risk
+    float tp2 = na
+    for q in liqs
+        if not q.swept and q.side == dir
+            bool beyondPx = dir == -1 ? q.price < close : q.price > close
+            bool far = math.abs(q.price - entry) >= 2 * risk and (dir == -1 ? q.price < entry : q.price > entry)
+            if beyondPx and far and (na(tp2) or math.abs(q.price - entry) < math.abs(tp2 - entry))
+                tp2 := q.price
+    float rr2 = na(tp2) ? na : math.abs(tp2 - entry) / risk
+    Setup.new(kind, dir, entry, sl, tp1, tp2, rr2, risk / entry * 100, false, false, note, pTop, pBot, bar_index)
+
+Setup st = na
+if bias != 0
+    // 1) Tín hiệu đang có: quét thanh khoản + MSS bằng nến displacement + FVG chưa lấp
+    int side = bias == -1 ? 1 : -1
+    string sweptNow = ""
+    for q in liqs
+        if q.side == side and not str.startswith(q.name, "EQ") and (side == 1 ? hi48 > q.price : lo48 < q.price)
+            sweptNow += (sweptNow == "" ? "" : ", ") + q.name
+    bool mss = lastEvDir == bias and not na(lastEvTo) and lastEvTo >= bar_index - 23
+    if sweptNow != "" and mss and lastEvBody > 1.5 * bodyAvg
+        Zone g = na
+        for z in ltfZ
+            if z.src == "FVG" and z.dir == bias and z.bi >= lastEvFrom
+                g := z
+        if not na(g)
+            float mid = (g.top + g.bot) / 2
+            float ext = bias == -1 ? hi48 : lo48
+            float sl0 = bias == -1 ? ext + 0.5 * atrC : ext - 0.5 * atrC
+            st := f_build("live", bias, mid, sl0, atrC, "quét " + sweptNow + " → " + lastEvType + " " + TFC + " + FVG", g.top, g.bot)
+            st.chased := bias == -1 ? close < st.entry - 0.5 * (st.entry - st.tp1) : close > st.entry + 0.5 * (st.tp1 - st.entry)
+            st.valid := inKZ and st.riskPct < maxRiskPct and not st.chased and nz(st.rr2) >= minRR
+    // 2) Lệnh chờ: POI gần nhất cùng hướng, ở premium (Short) / discount (Long) của range khung chart
+    if na(st)
+        float rHi = na
+        float rLo = na
+        int nH = shs.size()
+        int nL = sls.size()
+        for k = math.max(nH - 4, 0) to nH - 1
+            if nH > 0
+                rHi := na(rHi) ? shs.get(k).price : math.max(rHi, shs.get(k).price)
+        for k = math.max(nL - 4, 0) to nL - 1
+            if nL > 0
+                rLo := na(rLo) ? sls.get(k).price : math.min(rLo, sls.get(k).price)
+        float eqC = (rHi + rLo) / 2
+        Zone best = na
+        for z in ltfZ
+            bool okType = z.src == "FVG" or not z.tested
+            float mid = (z.top + z.bot) / 2
+            bool okSide = bias == -1 ? (z.bot > close and mid > eqC) : (z.top < close and mid < eqC)
+            if z.dir == bias and okType and okSide and math.abs(mid - close) / close <= 0.03
+                if na(best) or math.abs(mid - close) < math.abs((best.top + best.bot) / 2 - close)
+                    best := z
+        if not na(best)
+            float mid = (best.top + best.bot) / 2
+            float entry = best.src == "FVG" ? mid : (bias == -1 ? best.bot : best.top)
+            float prot = na
+            if bias == -1
+                for s in shs
+                    if s.price > best.top and (na(prot) or s.price < prot)
+                        prot := s.price
+                float base = not na(prot) and prot - best.top < 3 * atrC ? prot : best.top
+                st := f_build("plan", bias, entry, base + 0.5 * atrC, atrC, "lệnh chờ tại " + best.src + " " + TFC + " vùng premium", best.top, best.bot)
+            else
+                for s in sls
+                    if s.price < best.bot and (na(prot) or s.price > prot)
+                        prot := s.price
+                float base = not na(prot) and best.bot - prot < 3 * atrC ? prot : best.bot
+                st := f_build("plan", bias, entry, base - 0.5 * atrC, atrC, "lệnh chờ tại " + best.src + " " + TFC + " vùng discount", best.top, best.bot)
+
+// ============================================================ THEO DÕI LỆNH CHỜ
+var array<Plan> plans = array.new<Plan>()
+string planMsg = ""
+if not na(st)
+    bool dup = false
+    for p in plans
+        if p.dir == st.dir and math.abs(p.entry / st.entry - 1) < 0.0006 and math.abs(p.sl / st.sl - 1) < 0.0012 and time - p.tCreate < 24 * 3600000
+            dup := true
+    if not dup
+        [ws, we, wn] = kzWin(time)
+        int tStart = inKZ ? time : ws
+        Plan p = Plan.new(st.dir, st.kind, st.entry, st.sl, st.tp1, st.tp2, time, tStart, we, wn, bias)
+        p.status := inKZ ? "CHỜ KHỚP" : "CHỜ KHỚP (chỉ vào trong " + wn + ")"
+        plans.push(p)
+        planMsg += (st.kind == "live" ? (st.valid ? "TÍN HIỆU " : "TÍN HIỆU (CHƯA HỢP LỆ) ") : "LỆNH CHỜ ") + (st.dir == 1 ? "LONG" : "SHORT") + " " + TFC + " · Entry " + fmt(st.entry) + " · SL " + fmt(st.sl) + " · TP1 " + fmt(st.tp1) + " · TP2 " + fmt(st.tp2) + " · " + wn + "\n"
+        if plans.size() > 8
+            plans.shift()
+for p in plans
+    if not p.done
+        bool isShort = p.dir == -1
+        string before = p.status
+        if not p.filled
+            bool fill = isShort ? high >= p.entry : low <= p.entry
+            bool inval = isShort ? close > p.sl : close < p.sl
+            if time >= p.tExp
+                p.status := "HẾT HẠN: không khớp trong phiên"
+                p.done := true
+            else if inval and not fill
+                p.status := "HỦY: giá đóng vượt SL trước khi khớp"
+                p.done := true
+            else if bias != p.d1
+                p.status := "HỦY: D1 đổi hướng"
+                p.done := true
+            else if fill and time < p.tStart
+                p.status := "BỎ: chạm entry trước giờ phiên"
+                p.done := true
+            else if fill
+                p.filled := true
+                p.status := "ĐÃ KHỚP, đang chạy"
+            else if time >= p.tStart and not p.warned and math.abs(close - p.entry) / close <= 0.003
+                p.warned := true
+                planMsg += "CHUẨN BỊ: giá cách entry " + fmt(p.entry) + " ≤ 0,3% (" + (isShort ? "SHORT" : "LONG") + ")\n"
+        if p.filled and not p.done
+            bool hitSl = isShort ? high >= p.sl : low <= p.sl
+            bool hitTp1 = isShort ? low <= p.tp1 : high >= p.tp1
+            bool hitTp2 = not na(p.tp2) and (isShort ? low <= p.tp2 : high >= p.tp2)
+            if hitSl
+                p.status := p.tp1Hit ? "ĐẠT TP1 rồi quay về SL" : "THUA: chạm SL"
+                p.done := true
+            else if hitTp2
+                p.status := "THẮNG: đạt TP2"
+                p.done := true
+            else if hitTp1 and not p.tp1Hit
+                p.tp1Hit := true
+                p.status := "ĐẠT TP1 (2R), đang chờ TP2"
+        if p.status != before and not str.contains(p.status, "CHỜ KHỚP")
+            planMsg += (isShort ? "SHORT " : "LONG ") + fmt(p.entry) + " (" + vnDT(p.tCreate) + "): " + p.status + "\n"
+
+// ============================================================ CẢNH BÁO
+if barstate.isconfirmed
+    if alSetup and planMsg != ""
+        alert("BTC " + TFC + " · " + fmt(close) + "\n" + planMsg, alert.freq_once_per_bar_close)
+    if alLiq and sweptMsg != ""
+        alert("BTC quét thanh khoản: " + sweptMsg + " · giá " + fmt(close), alert.freq_once_per_bar_close)
+    if alStruct and evDir != 0
+        alert("BTC " + TFC + " " + evType + " " + (evDir == 1 ? "↑" : "↓") + " " + fmt(evLvl), alert.freq_once_per_bar_close)
+
+// ============================================================ VẼ Ở NẾN CUỐI
+var array<line> tmpL = array.new<line>()
+var array<label> tmpLb = array.new<label>()
+var array<box> tmpB = array.new<box>()
+var polyline avwapPl = na
+
+drawH(float p, int t0, string txt, color c, string st_) =>
+    if not na(p) and not na(t0)
+        tmpL.push(line.new(t0, p, time + 6 * tfMs, p, xloc.bar_time, color = c, style = st_, width = 1))
+        tmpLb.push(label.new(time + 6 * tfMs, p, txt + " " + fmt0(p), xloc.bar_time, color = color.new(C_BG, 100), textcolor = c, style = label.style_label_left, size = size.small))
+
+float vpPoc = na
+float vpVah = na
+float vpVal = na
+
+if barstate.islast
+    for l in tmpL
+        l.delete()
+    for l in tmpLb
+        l.delete()
+    for b in tmpB
+        b.delete()
+    tmpL.clear()
+    tmpLb.clear()
+    tmpB.clear()
+
+    // Giá mở cửa
+    if showOpens
+        drawH(dOpen, dayT, "Mở cửa ngày", C_GRAY, line.style_dotted)
+        drawH(nyMid, nyMidT, "NY midnight open", C_ORG, line.style_dotted)
+        drawH(ny830, ny830T, "NY 08:30 open", C_ORG, line.style_dotted)
+        drawH(wOpen, weekT, "Mở cửa tuần", C_GRAY, line.style_dashed)
+        drawH(mOpen, monthT, "Mở cửa tháng", C_GRAY, line.style_dashed)
+
+    // Nhãn thanh khoản ở mép phải
+    for q in liqs
+        if not na(q.lb)
+            q.lb.set_x(time + 6 * tfMs)
+            q.lb.set_text(q.name + " " + fmt0(q.price) + (q.swept ? " swept" : ""))
+            q.lb.set_textcolor(q.swept ? C_GRAY : liqColor(q.side))
+
+    // Fibonacci + OTE
+    if showFib and not na(fibHi) and not na(fibLo)
+        int ft = math.min(hLastHT, hLastLT)
+        for r in array.from(0.5, 0.618, 0.705, 0.79)
+            drawH(fibLv(r), ft, "Fib " + str.tostring(r), color.new(C_GRAY, 30), line.style_dotted)
+        tmpB.push(box.new(math.max(hLastHT, hLastLT), oteHi, time + 6 * tfMs, oteLo, xloc = xloc.bar_time, border_color = color.new(C_YEL, 70), bgcolor = color.new(C_YEL, 92)))
+
+    // Key Volume
+    if showKV
+        if not na(hKvT)
+            tmpB.push(box.new(time - 72 * htfMs, hKvT, time + 6 * tfMs, hKvB, xloc = xloc.bar_time, border_color = color.new(C_YEL, 50), bgcolor = color.new(C_YEL, 96), text = "KV " + TFH, text_color = C_YEL, text_size = size.tiny, text_halign = text.align_right, text_valign = text.align_top))
+        if not na(kv4T)
+            drawH(kv4T, time - 60 * 4 * 3600000, "KV H4 đỉnh", color.new(C_YEL, 20), line.style_dashed)
+            drawH(kv4B, time - 60 * 4 * 3600000, "KV H4 đáy", color.new(C_YEL, 20), line.style_dashed)
+
+    // AVWAP từ đỉnh (D1 giảm) / đáy (D1 tăng) con sóng D1
+    if showAvwap and bias != 0
+        int anchor = bias == -1 ? d1HT : d1LT
+        if not na(anchor)
+            int k = 0
+            while k < 4990 and time[k] >= anchor
+                k += 1
+            if k > 1 and k < 4990
+                array<chart.point> pts = array.new<chart.point>()
+                float pv = 0.0
+                float vv = 0.0
+                for j = k - 1 to 0
+                    pv += hlc3[j] * volume[j]
+                    vv += volume[j]
+                    if vv > 0
+                        pts.push(chart.point.from_index(bar_index - j, pv / vv))
+                if not na(avwapPl)
+                    avwapPl.delete()
+                avwapPl := polyline.new(pts, line_color = C_PINK, line_width = 2, line_style = line.style_dashed)
+                tmpLb.push(label.new(bar_index + 6, pv / vv, "AVWAP từ " + str.format_time(anchor, "dd/MM", TZVN) + " " + fmt0(pv / vv), color = color.new(C_BG, 100), textcolor = C_PINK, style = label.style_label_left, size = size.small))
+
+    // Volume Profile
+    if showVP
+        int n = math.min(vpBars, bar_index)
+        float lo = low
+        float hi = high
+        for i = 0 to n - 1
+            lo := math.min(lo, low[i])
+            hi := math.max(hi, high[i])
+        float step = (hi - lo) / vpBins
+        if step > 0
+            array<float> hist = array.new<float>(vpBins, 0.0)
+            for i = 0 to n - 1
+                int a = math.min(math.max(int(math.floor((low[i] - lo) / step)), 0), vpBins - 1)
+                int b = math.min(math.max(int(math.ceil((high[i] - lo) / step)), a + 1), vpBins)
+                float share = volume[i] / (b - a)
+                for k = a to b - 1
+                    hist.set(k, hist.get(k) + share)
+            int poc = hist.indexof(hist.max())
+            float tot = hist.sum()
+            float acc = hist.get(poc)
+            int li = poc
+            int hiI = poc
+            while acc < 0.7 * tot and (li > 0 or hiI < vpBins - 1)
+                float dn = li > 0 ? hist.get(li - 1) : -1.0
+                float up = hiI < vpBins - 1 ? hist.get(hiI + 1) : -1.0
+                if up >= dn
+                    hiI += 1
+                    acc += hist.get(hiI)
+                else
+                    li -= 1
+                    acc += hist.get(li)
+            vpPoc := lo + step * (poc + 0.5)
+            vpVah := lo + step * (hiI + 1)
+            vpVal := lo + step * li
+            float hmax = hist.max()
+            int x0 = bar_index + 26
+            for k = 0 to vpBins - 1
+                int w = int(math.round(hist.get(k) / hmax * vpWidth))
+                if w > 0
+                    color c = k == poc ? C_YEL : (k >= li and k <= hiI ? color.new(C_BLUE, 35) : color.new(C_GRAY, 55))
+                    tmpB.push(box.new(x0, lo + step * (k + 1), x0 + w, lo + step * k, border_color = color.new(c, 100), bgcolor = c))
+            tmpL.push(line.new(bar_index - n, vpPoc, x0, vpPoc, color = color.new(C_YEL, 20), style = line.style_dotted))
+            tmpLb.push(label.new(x0 + vpWidth, vpPoc, "POC " + fmt0(vpPoc), color = color.new(C_BG, 100), textcolor = C_YEL, style = label.style_label_left, size = size.small))
+            tmpLb.push(label.new(x0 + vpWidth, vpVah, "VAH " + fmt0(vpVah), color = color.new(C_BG, 100), textcolor = C_BLUE, style = label.style_label_left, size = size.small))
+            tmpLb.push(label.new(x0 + vpWidth, vpVal, "VAL " + fmt0(vpVal), color = color.new(C_BG, 100), textcolor = C_BLUE, style = label.style_label_left, size = size.small))
+
+    // Chấm điểm + nhãn vùng H1
+    for z in htfZ
+        float mid = (z.top + z.bot) / 2
+        bool near = math.abs(close - mid) / close * 100 <= zoneMaxDist
+        if not na(z.bx)
+            color base = z.dir == 1 ? C_UP : C_DN
+            bool withBias = z.dir == bias
+            z.bx.set_bgcolor(near ? color.new(base, withBias ? 85 : 94) : color.new(base, 100))
+            z.bx.set_border_color(near ? color.new(base, withBias ? (z.src == "OB" ? 0 : 30) : 70) : color.new(base, 100))
+            z.score := 0
+            string txt = z.src + " " + TFH
+            if withBias and near
+                [s, why] = scoreZone(z)
+                z.score := s
+                int tot8 = s + (macroScore == 0 ? 0 : (macroScore == z.dir ? 1 : -1))
+                txt := z.src + " " + TFH + " · " + str.tostring(tot8) + "/8"
+            z.bx.set_text(near ? txt : "")
+            z.bx.set_text_color(base)
+            z.bx.set_text_size(size.tiny)
+            z.bx.set_text_halign(text.align_right)
+            z.bx.set_text_valign(text.align_top)
+
+    // Lệnh M15
+    if showSetup and not na(st)
+        int x1 = st.bi - 12
+        int x2 = bar_index + 20
+        tmpB.push(box.new(x1, st.poiTop, x2, st.poiBot, border_color = color.new(C_BLUE, 60), bgcolor = color.new(C_BLUE, 88)))
+        tmpL.push(line.new(x1, st.entry, x2, st.entry, color = C_BLUE, width = 2))
+        tmpL.push(line.new(x1, st.sl, x2, st.sl, color = C_DN, width = 2))
+        tmpL.push(line.new(x1, st.tp1, x2, st.tp1, color = C_UP, width = 2))
+        tmpLb.push(label.new(x2, st.entry, "Entry " + fmt(st.entry) + (st.kind == "plan" ? " (limit)" : ""), color = C_BLUE, textcolor = color.white, style = label.style_label_left, size = size.small))
+        tmpLb.push(label.new(x2, st.sl, "SL " + fmt(st.sl) + " (" + str.tostring(st.riskPct, "0.00") + "%)", color = C_DN, textcolor = color.white, style = label.style_label_left, size = size.small))
+        tmpLb.push(label.new(x2, st.tp1, "TP1 2R " + fmt(st.tp1), color = C_UP, textcolor = color.white, style = label.style_label_left, size = size.small))
+        if not na(st.tp2)
+            tmpL.push(line.new(x1, st.tp2, x2, st.tp2, color = C_UP, width = 1, style = line.style_dashed))
+            tmpLb.push(label.new(x2, st.tp2, "TP2 " + fmt(st.tp2) + " (" + str.tostring(st.rr2, "0.0") + "R)", color = color.new(C_UP, 40), textcolor = color.white, style = label.style_label_left, size = size.small))
+
+// ============================================================ BẢNG TỔNG HỢP
+tbPos = switch tablePos
+    "Trên phải" => position.top_right
+    "Dưới phải" => position.bottom_right
+    "Trên trái" => position.top_left
+    => position.bottom_left
+tbSize = switch tableSize
+    "Rất nhỏ" => size.tiny
+    "Vừa" => size.normal
+    => size.small
+var table tb = table.new(tbPos, 2, 32, bgcolor = color.new(C_BG, 8), border_color = color.new(C_GRAY, 70), border_width = 1, frame_color = color.new(C_GRAY, 40), frame_width = 1)
+
+row(int r, string k, string v, color vc) =>
+    tb.cell(0, r, k, text_color = C_GRAY, text_size = tbSize, text_halign = text.align_left)
+    tb.cell(1, r, v, text_color = vc, text_size = tbSize, text_halign = text.align_left)
+
+ck(bool ok, string t) => (ok ? "✓ " : "✗ ") + t
+
+posPct(float hi, float lo) => hi > lo ? math.max(math.min((close - lo) / (hi - lo) * 100, 100), 0) : 50.0
+
+if barstate.islast and showTable
+    tb.clear(0, 0, 1, 31)
+    int r = 0
+    // Kết luận
+    string concl = "CHỜ"
+    color cc = C_FG
+    if not na(st)
+        concl := st.kind == "live" ? "TÍN HIỆU " + (st.dir == 1 ? "LONG " : "SHORT ") + TFC + (st.valid ? "" : " (CHƯA HỢP LỆ)") : "LỆNH CHỜ " + (st.dir == 1 ? "LONG " : "SHORT ") + TFC
+        cc := st.dir == 1 ? C_UP : C_DN
+    row(r, "BTC " + TFC + " · " + vnDT(time), concl, cc)
+    r += 1
+    // Đa khung
+    int align = (d1Tr == bias and bias != 0 ? 1 : 0) + (h4Tr == bias and bias != 0 ? 1 : 0) + (h1Tr == bias and bias != 0 ? 1 : 0) + (m15Tr == bias and bias != 0 ? 1 : 0) + (m5Tr == bias and bias != 0 ? 1 : 0)
+    row(r, "Đa khung", "D1" + arrow(d1Tr) + "  H4" + arrow(h4Tr) + "  H1" + arrow(h1Tr) + "  M15" + arrow(m15Tr) + "  M5" + arrow(m5Tr) + "  (" + str.tostring(align) + "/5 cùng D1)", align >= 3 ? (bias == 1 ? C_UP : C_DN) : C_FG)
+    r += 1
+    string d1Ev = d1EvD == 0 ? "–" : (d1EvBos == 1 ? "BOS " : "CHoCH ") + arrow(d1EvD) + " " + fmt0(d1EvL) + " (" + str.format_time(d1EvT, "dd/MM", TZVN) + ")"
+    row(r, "D1", d1Ev + " · " + pdD1 + " " + str.tostring(posPct(d1H, d1L), "0") + "% · RSI " + str.tostring(d1R, "0.0") + " · EQ " + fmt0(eqD1), C_FG)
+    r += 1
+    string emaTxt = "EMA: H4 " + (close < h4E20 and h4E20 < h4E50 ? "↓" : close > h4E20 and h4E20 > h4E50 ? "↑" : "~") + " · H1 " + (close < h1E20 and h1E20 < h1E50 ? "↓" : close > h1E20 and h1E20 > h1E50 ? "↑" : "~") + " · RSI H4 " + str.tostring(h4R, "0") + " / H1 " + str.tostring(h1R, "0") + " / M15 " + str.tostring(m15R, "0")
+    row(r, "EMA / RSI", emaTxt, C_FG)
+    r += 1
+    // Wyckoff
+    string preTr = d1Prior > wyHi ? "giảm" : d1Prior < wyLo ? "tăng" : "đi ngang"
+    string wy = wyLLo < wyLo and close > wyLo ? "Spring/Test (Phase C)" : wyLHi > wyHi and close < wyHi ? "UTAD/Upthrust (Phase C)" : close > wyHi and bias == 1 ? "Markup – thoát range lên" : close < wyLo and bias == -1 ? "Markdown – thoát range xuống" : preTr == "giảm" ? "Range sau giảm (Phase B)" : preTr == "tăng" ? "Range sau tăng (Phase B)" : "Range (Phase B)"
+    row(r, "Wyckoff", wy + " · H4 " + fmt0(wyLo) + "–" + fmt0(wyHi), C_FG)
+    r += 1
+    // PO3
+    Liq aH = getLiq("Á H")
+    Liq aL = getLiq("Á L")
+    bool swH = not na(aH) and aH.swept
+    bool swL = not na(aL) and aL.swept
+    string p3 = "ngày " + (close > dOpen ? "TĂNG" : "GIẢM") + " (" + fpc((close / dOpen - 1) * 100, 2) + " so mở cửa)"
+    p3 += swH and swL ? " · quét cả 2 đầu phiên Á" : swH ? (close < dOpen ? " · quét đỉnh Á rồi xả → PO3 giảm" : " · vượt đỉnh Á, giữ trên mở cửa") : swL ? (close > dOpen ? " · quét đáy Á rồi đẩy → PO3 tăng" : " · phá đáy Á, giữ dưới mở cửa") : " · chưa quét đỉnh/đáy Á"
+    row(r, "PO3", p3, C_FG)
+    r += 1
+    // Thời gian
+    [ws, we, wn] = kzWin(time)
+    string tTxt = inKZ ? "TRONG " + kzName + " (đến " + vnTime(we) + ")" : wn + " mở " + vnTime(ws) + "–" + vnTime(we) + " (sau " + str.tostring(math.round((ws - timenow) / 60000.0)) + "′)"
+    tTxt += sbName != "" ? " · " + sbName : ""
+    tTxt += inMacro ? " · ICT macro" : ""
+    tTxt += newsBlock ? " · ⚠ ±30′ TIN LỚN" : ""
+    row(r, "Thời gian", tTxt, inKZ ? C_YEL : C_FG)
+    r += 1
+    row(r, "Giá mở cửa", "Ngày " + fmt0(dOpen) + " · NY 0h " + fmt0(nyMid) + " · Tuần " + fmt0(wOpen) + " · Tháng " + fmt0(mOpen), C_FG)
+    r += 1
+    // Dòng tiền
+    string fp = "OI 4h " + sgn(oiSign) + " (" + fpc(dOi, 2) + " / giá " + fpc(dPx, 2) + ": " + oiTxt + ")"
+    row(r, "Cá mập " + (fpScore > 0 ? "+" : "") + str.tostring(fpScore), fp, fpScore > 0 ? C_UP : fpScore < 0 ? C_DN : C_FG)
+    r += 1
+    row(r, "", "CVD 4h " + sgn(cvdSign) + " (" + fmt0(d4) + " / 24h " + fmt0(d24) + ") · Phân kỳ CVD " + sgn(divCvdSign) + " · Basis " + sgn(fundSign) + " (" + fpc(basisAvg, 3) + ") · CB premium " + sgn(cbSign) + " (" + fpc(prem, 3) + ")", C_FG)
+    r += 1
+    // Thanh khoản chưa quét gần nhất
+    float nb = na
+    float ns = na
+    for q in liqs
+        if not q.swept and q.side == 1 and q.price > close and (na(nb) or q.price < nb)
+            nb := q.price
+        if not q.swept and q.side == -1 and q.price < close and (na(ns) or q.price > ns)
+            ns := q.price
+    row(r, "Thanh khoản", "BSL gần " + fmt0(nb) + " · SSL gần " + fmt0(ns) + " · VWAP ngày " + fmt0(vwapD) + " · tuần " + fmt0(vwapW), C_FG)
+    r += 1
+    // Lệnh
+    if not na(st)
+        float riskUsd = math.abs(st.entry - st.sl)
+        float b2 = capital * 0.02 / riskUsd
+        float b5 = capital * 0.05 / riskUsd
+        row(r, "Lệnh (" + st.kind + ")", (st.dir == 1 ? "LONG" : "SHORT") + " · Entry " + fmt(st.entry) + " · SL " + fmt(st.sl) + " (" + str.tostring(st.riskPct, "0.00") + "%)", cc)
+        r += 1
+        row(r, "TP", "TP1 " + fmt(st.tp1) + " (2R) · TP2 " + fmt(st.tp2) + (na(st.rr2) ? "" : " (" + str.tostring(st.rr2, "0.0") + "R)"), C_UP)
+        r += 1
+        row(r, "Khối lượng", "2%: " + str.tostring(b2, "0.0000") + " BTC = " + str.tostring(math.floor(b2 / ctVal)) + " HĐ · 5%: " + str.tostring(b5, "0.0000") + " BTC = " + str.tostring(math.floor(b5 / ctVal)) + " HĐ", C_FG)
+        r += 1
+        row(r, "Mẫu", st.note, C_FG)
+        r += 1
+        // Checklist
+        int ds = st.dir
+        Zone zh = na
+        for z in htfZ
+            if st.entry >= z.bot * 0.998 and st.entry <= z.top * 1.002 and z.dir == ds
+                zh := z
+        bool cZone = not na(zh) and zh.score >= 4
+        bool cMtf = align >= 3
+        int tsc = (inKZ ? 1 : 0) + (sbName != "" or inMacro ? 1 : 0) + ((ds == -1 and st.entry > dOpen and st.entry > nyMid) or (ds == 1 and st.entry < dOpen and st.entry < nyMid) ? 1 : 0)
+        bool cTime = tsc >= 1
+        bool cFp = fpScore * ds > 0
+        bool divOkH = ds == -1 ? not na(hDivBearT) and time - hDivBearT <= 40 * htfMs : not na(hDivBullT) and time - hDivBullT <= 40 * htfMs
+        bool divBadH = ds == -1 ? not na(hDivBullT) and time - hDivBullT <= 40 * htfMs : not na(hDivBearT) and time - hDivBearT <= 40 * htfMs
+        bool okC = ds == -1 ? (not na(divBearB) and bar_index - divBearB <= 40) or (not na(smtBearB) and bar_index - smtBearB <= 40) : (not na(divBullB) and bar_index - divBullB <= 40) or (not na(smtBullB) and bar_index - smtBullB <= 40)
+        bool badC = ds == -1 ? (not na(divBullB) and bar_index - divBullB <= 40) or (not na(smtBullB) and bar_index - smtBullB <= 40) : (not na(divBearB) and bar_index - divBearB <= 40) or (not na(smtBearB) and bar_index - smtBearB <= 40)
+        bool cSmt = (divOkH or okC) and not (divBadH or badC)
+        bool cPd = ds == -1 ? pdD1 == "premium" : pdD1 == "discount"
+        bool cVw = ds == -1 ? st.entry > vwapD : st.entry < vwapD
+        bool cVp = (not na(vpPoc) and math.abs(vpPoc / st.entry - 1) < 0.0015) or (not na(vpVah) and math.abs(vpVah / st.entry - 1) < 0.0015) or (not na(vpVal) and math.abs(vpVal / st.entry - 1) < 0.0015)
+        int passed = (cZone ? 1 : 0) + (cMtf ? 1 : 0) + (cTime ? 1 : 0) + (cFp ? 1 : 0) + (cSmt ? 1 : 0) + (cPd ? 1 : 0) + (cVw ? 1 : 0) + (cVp ? 1 : 0)
+        bool hRR = nz(st.rr2) >= minRR
+        bool hRisk = st.riskPct < maxRiskPct
+        bool hChase = not st.chased
+        bool hNews = not newsBlock
+        bool hSess = inKZ
+        bool hardOk = hRR and hRisk and hChase and hNews and hSess
+        string hardTxt = hardOk ? "ĐẠT" : "CHƯA ĐẠT (" + (hRR ? "" : "R:R<" + str.tostring(minRR) + " ") + (hRisk ? "" : "risk≥" + str.tostring(maxRiskPct) + "% ") + (hChase ? "" : "đuổi giá ") + (hNews ? "" : "tin lớn ") + (hSess ? "" : "ngoài phiên") + ")"
+        row(r, "Checklist", str.tostring(passed) + "/8 · Quy tắc cứng: " + hardTxt, passed >= 5 and hardOk ? C_UP : C_ORG)
+        r += 1
+        if showChk
+            row(r, "", ck(cZone, "Vùng " + TFH + (na(zh) ? ": entry không trong vùng có điểm" : " " + zh.src + " " + str.tostring(zh.score) + "/7")) + " · " + ck(cMtf, str.tostring(align) + "/5 khung"), C_FG)
+            r += 1
+            row(r, "", ck(cTime, "Thời gian " + str.tostring(tsc) + "/3") + " · " + ck(cFp, "Dòng tiền " + str.tostring(fpScore)) + " · " + ck(cSmt, "SMT/phân kỳ"), C_FG)
+            r += 1
+            row(r, "", ck(cPd, pdD1 + " D1") + " · " + ck(cVw, "VWAP ngày") + " · " + ck(cVp, "trùng VP"), C_FG)
+            r += 1
+    else
+        row(r, "Lệnh", "Không có setup — chờ giá về vùng H1 / quét thanh khoản / CHoCH " + TFC + (bias == -1 ? " giảm" : bias == 1 ? " tăng" : ""), C_FG)
+        r += 1
+    // Lệnh chờ trước
+    if showPlans and plans.size() > 0
+        int cnt = 0
+        for i = plans.size() - 1 to 0
+            if cnt < 4
+                Plan p = plans.get(i)
+                row(r, i == plans.size() - 1 ? "Lệnh trước" : "", vnDT(p.tCreate) + " " + (p.dir == 1 ? "LONG " : "SHORT ") + fmt0(p.entry) + " / SL " + fmt0(p.sl) + " → " + p.status, p.done ? C_GRAY : C_FG)
+                r += 1
+                cnt += 1
+    row(r, "Vĩ mô", (macroScore > 0 ? "+1 (ủng hộ tăng)" : macroScore < 0 ? "−1 (ủng hộ giảm)" : "0") + " · tự chấm trong Cài đặt", C_GRAY)

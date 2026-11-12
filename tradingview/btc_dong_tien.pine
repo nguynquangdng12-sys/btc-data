@@ -1,0 +1,148 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// BTC Dấu chân cá mập – khung phụ đi kèm "BTC Sổ tay ICT/SMC" (giống các ô Volume / CVD / OI / Coinbase premium trên chart gửi hằng ngày).
+// Thêm indicator này nhiều lần, mỗi lần chọn một "Hiển thị" khác nhau.
+// Lưu ý: TradingView không có dữ liệu long/short top trader và thanh lý của OKX → hai mục này không có ở đây.
+
+//@version=6
+indicator("BTC Dấu chân cá mập", shorttitle = "BTC Dòng tiền", overlay = false, format = format.volume)
+
+C_UP   = #26a69a
+C_DN   = #ef5350
+C_BLUE = #42a5f5
+C_YEL  = #ffca28
+C_PURP = #ab47bc
+C_GRAY = #8a8f98
+C_FG   = #d7dae0
+C_BG   = #0f1117
+
+mode     = input.string("CVD (taker ước lượng)", "Hiển thị", options = ["Volume", "CVD (taker ước lượng)", "Taker mua − bán (cột)", "Open Interest", "Coinbase premium", "Basis perp/spot (≈ funding)"])
+oiSym    = input.symbol("OKX:BTCUSDT.P_OI", "Open Interest")
+spotSym  = input.symbol("OKX:BTCUSDT", "Spot (tính basis)")
+cbSym    = input.symbol("COINBASE:BTCUSD", "Coinbase")
+ltfDelta = input.timeframe("1", "Khung con tính CVD")
+swLen    = input.int(2, "Swing (phân kỳ CVD)", minval = 1)
+spikeX   = input.float(2.0, "Volume đột biến ≥ × TB20", step = 0.1)
+basisHi  = input.float(0.05, "Basis cao → long đông (%)", step = 0.01)
+basisLo  = input.float(-0.02, "Basis âm → short đông (%)", step = 0.01)
+showTb   = input.bool(true, "Bảng điểm dòng tiền")
+
+barsFor(float hours) => math.max(1, int(math.round(hours * 3600.0 / timeframe.in_seconds())))
+n4  = barsFor(4)
+n8  = barsFor(8)
+n24 = barsFor(24)
+sgn(int s) => s > 0 ? "+" : s < 0 ? "−" : "0"
+fpc(float x, int d) => na(x) ? "–" : str.tostring(x, d == 3 ? "+0.000;-0.000" : "+0.00;-0.00") + "%"
+fmt0(float x) => na(x) ? "–" : str.tostring(x, "#,###")
+
+// ---------------- dữ liệu
+array<float> dArr = request.security_lower_tf(syminfo.tickerid, ltfDelta, close > open ? volume : close < open ? -volume : 0.0, ignore_invalid_timeframe = true)
+float barDelta = dArr.size() > 0 ? dArr.sum() : (close > open ? volume : close < open ? -volume : 0.0)
+cvd = ta.cum(barDelta)
+oi = request.security(oiSym, timeframe.period, close, ignore_invalid_symbol = true)
+spot = request.security(spotSym, timeframe.period, close, ignore_invalid_symbol = true)
+cbPx = request.security(cbSym, timeframe.period, close, ignore_invalid_symbol = true)
+
+// ---------------- điểm
+dOi = (oi / oi[n4] - 1) * 100
+dPx = (close / close[n4] - 1) * 100
+int oiSign = 0
+string oiTxt = "không có dữ liệu OI"
+if not na(dOi)
+    if dPx > 0.3 and dOi > 0.5
+        oiSign := 1
+        oiTxt := "giá↑ OI↑: long mới vào, tiền mới đẩy giá"
+    else if dPx > 0.3 and dOi < -0.5
+        oiTxt := "giá↑ OI↓: short cover, đà tăng kém bền"
+    else if dPx < -0.3 and dOi > 0.5
+        oiSign := -1
+        oiTxt := "giá↓ OI↑: short mới vào, tiền mới đẩy giá xuống"
+    else if dPx < -0.3 and dOi < -0.5
+        oiTxt := "giá↓ OI↓: long xả/bị thanh lý, đà giảm kém bền"
+    else if dOi > 1.0
+        oiTxt := "đi ngang, OI↑: vị thế tích tụ, sắp có cú quét"
+    else if dOi < -1.0
+        oiTxt := "đi ngang, OI↓: vị thế rút ra"
+    else
+        oiTxt := "OI ít thay đổi"
+d4 = math.sum(barDelta, n4)
+d24 = math.sum(barDelta, n24)
+thr = 2 * ta.median(math.abs(barDelta), n24)
+cvdSign = d4 > thr ? 1 : d4 < -thr ? -1 : 0
+
+// phân kỳ CVD tại 2 swing gần nhất
+var float pHp = na
+var float pHc = na
+var int pHb = na
+var float pLp = na
+var float pLc = na
+var int pLb = na
+var int divSign = 0
+var int divB = na
+ph = ta.pivothigh(high, swLen, swLen)
+pl = ta.pivotlow(low, swLen, swLen)
+if not na(ph)
+    float c = cvd[swLen]
+    if not na(pHp) and ph > pHp and c < pHc and bar_index - pHb <= 80
+        divSign := -1
+        divB := bar_index - swLen
+    pHp := ph
+    pHc := c
+    pHb := bar_index - swLen
+if not na(pl)
+    float c = cvd[swLen]
+    if not na(pLp) and pl < pLp and c > pLc and bar_index - pLb <= 80
+        divSign := 1
+        divB := bar_index - swLen
+    pLp := pl
+    pLc := c
+    pLb := bar_index - swLen
+divActive = not na(divB) and bar_index - divB <= 80
+divS = divActive ? divSign : 0
+
+basis = (close / spot - 1) * 100
+basisAvg = ta.sma(basis, n8)
+fundSign = na(basisAvg) ? 0 : basisAvg > basisHi ? -1 : basisAvg < basisLo ? 1 : 0
+prem = (cbPx / close - 1) * 100
+premAvg = ta.sma(prem, n24)
+cbSign = na(prem) ? 0 : prem > 0.05 and premAvg > 0 ? 1 : prem < -0.05 and premAvg < 0 ? -1 : 0
+score = oiSign + cvdSign + divS + fundSign + cbSign
+
+// ---------------- vẽ
+volSma = ta.sma(volume, 20)
+isV = mode == "Volume"
+isC = mode == "CVD (taker ước lượng)"
+isD = mode == "Taker mua − bán (cột)"
+isO = mode == "Open Interest"
+isP = mode == "Coinbase premium"
+isB = mode == "Basis perp/spot (≈ funding)"
+plot(isV ? volume : na, "Volume", volume >= spikeX * volSma ? C_YEL : close >= open ? color.new(C_UP, 30) : color.new(C_DN, 30), style = plot.style_columns)
+plot(isV ? volSma : na, "TB20", C_GRAY)
+plot(isD ? barDelta : na, "Taker mua − bán", barDelta >= 0 ? color.new(C_UP, 40) : color.new(C_DN, 40), style = plot.style_columns)
+plot(isC ? cvd : na, "CVD", C_YEL, 2)
+plot(isO ? oi : na, "Open Interest", C_BLUE, 2)
+plot(isO ? oi - oi[1] : na, "ΔOI", oi - oi[1] >= 0 ? color.new(C_UP, 50) : color.new(C_DN, 50), style = plot.style_columns, display = display.data_window)
+plot(isP ? prem : na, "Coinbase premium %", C_PURP, 2)
+plot(isP ? premAvg : na, "TB 24h", color.new(C_PURP, 60), 1)
+plot(isB ? basis : na, "Basis %", C_BLUE, 1)
+plot(isB ? basisAvg : na, "Basis TB 8h", C_YEL, 2)
+hline(0, "0", color.new(C_GRAY, 60), hline.style_dotted)
+plotshape(isC and divActive and divB == bar_index - swLen and divSign == -1, "Phân kỳ CVD giảm", shape.triangledown, location.top, C_DN, offset = -swLen, size = size.tiny)
+plotshape(isC and divActive and divB == bar_index - swLen and divSign == 1, "Phân kỳ CVD tăng", shape.triangleup, location.bottom, C_UP, offset = -swLen, size = size.tiny)
+
+var table tb = table.new(position.top_left, 2, 7, bgcolor = color.new(C_BG, 10), border_color = color.new(C_GRAY, 70), border_width = 1)
+if barstate.islast and showTb
+    color sc = score > 0 ? C_UP : score < 0 ? C_DN : C_FG
+    tb.cell(0, 0, "Dấu chân cá mập", text_color = C_GRAY, text_size = size.small, text_halign = text.align_left)
+    tb.cell(1, 0, "điểm " + (score > 0 ? "+" : "") + str.tostring(score) + (score > 0 ? " → ủng hộ tăng" : score < 0 ? " → ủng hộ giảm" : " → trung tính"), text_color = sc, text_size = size.small, text_halign = text.align_left)
+    tb.cell(0, 1, sgn(oiSign) + " OI 4h", text_color = C_FG, text_size = size.small, text_halign = text.align_left)
+    tb.cell(1, 1, "OI " + fpc(dOi, 2) + ", giá " + fpc(dPx, 2) + " → " + oiTxt, text_color = C_FG, text_size = size.small, text_halign = text.align_left)
+    tb.cell(0, 2, sgn(cvdSign) + " CVD 4h", text_color = C_FG, text_size = size.small, text_halign = text.align_left)
+    tb.cell(1, 2, "taker ròng 4h " + fmt0(d4) + " (24h " + fmt0(d24) + ") → " + (cvdSign > 0 ? "phe mua chủ động áp đảo" : cvdSign < 0 ? "phe bán chủ động áp đảo" : "cân bằng"), text_color = C_FG, text_size = size.small, text_halign = text.align_left)
+    tb.cell(0, 3, sgn(divS) + " Phân kỳ CVD", text_color = C_FG, text_size = size.small, text_halign = text.align_left)
+    tb.cell(1, 3, divS < 0 ? "đỉnh cao hơn nhưng CVD thấp hơn: bán limit hấp thụ ở đỉnh" : divS > 0 ? "đáy thấp hơn nhưng CVD cao hơn: mua limit hấp thụ ở đáy" : "không có", text_color = C_FG, text_size = size.small, text_halign = text.align_left)
+    tb.cell(0, 4, sgn(fundSign) + " Basis ≈ funding", text_color = C_FG, text_size = size.small, text_halign = text.align_left)
+    tb.cell(1, 4, "TB 8h " + fpc(basisAvg, 3) + " → " + (fundSign < 0 ? "long đông, dễ bị quét long" : fundSign > 0 ? "short đông, dễ bị ép short" : "bình thường"), text_color = C_FG, text_size = size.small, text_halign = text.align_left)
+    tb.cell(0, 5, sgn(cbSign) + " Coinbase premium", text_color = C_FG, text_size = size.small, text_halign = text.align_left)
+    tb.cell(1, 5, fpc(prem, 3) + " (TB 24h " + fpc(premAvg, 3) + ") → " + (cbSign > 0 ? "cầu spot Mỹ mạnh" : cbSign < 0 ? "Mỹ bán spot / cầu yếu" : "trung tính"), text_color = C_FG, text_size = size.small, text_halign = text.align_left)
+    tb.cell(0, 6, "Không có", text_color = C_GRAY, text_size = size.tiny, text_halign = text.align_left)
+    tb.cell(1, 6, "long/short top trader, thanh lý, tường lệnh (TradingView không cung cấp dữ liệu OKX này)", text_color = C_GRAY, text_size = size.tiny, text_halign = text.align_left)
