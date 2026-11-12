@@ -40,6 +40,7 @@ fvgMin     = input.float(0.05, "FVG khung vùng tối thiểu (%)", step = 0.01,
 showHtfZ   = input.bool(true, "Vẽ OB / FVG khung vùng", group = G2)
 zoneMaxDist = input.float(4.0, "Chỉ hiện vùng cách giá ≤ (%)", step = 0.5, group = G2)
 showFib    = input.bool(true, "Fibonacci + OTE (0.618–0.79)", group = G2)
+showFibLb  = input.bool(false, "Vẽ cả các mức Fib 0.5 / 0.618 / 0.705 / 0.79 (rối hơn)", group = G2)
 showKV     = input.bool(true, "Key Volume H1 / H4", group = G2)
 macroScore = input.int(0, "Điểm vĩ mô (+1 ủng hộ tăng / 0 / −1 ủng hộ giảm)", minval = -1, maxval = 1, group = G2, tooltip = "Bạn tự chấm sau khi đọc tin. Vùng cùng hướng vĩ mô được +1, ngược hướng −1 (tối đa 8).")
 
@@ -47,6 +48,7 @@ G3 = "3. Thanh khoản & giá mở cửa"
 showLiq    = input.bool(true, "PDH/PDL, PWH/PWL, đỉnh/đáy phiên, EQH/EQL", group = G3)
 showOpens  = input.bool(true, "Giá mở cửa: ngày (07:00 VN), NY midnight, NY 08:30, tuần, tháng", group = G3)
 eqTol      = input.float(0.1, "Sai số đỉnh/đáy bằng nhau (%)", step = 0.05, group = G3)
+showSweptLb = input.bool(false, "Hiện nhãn các mức đã bị quét (swept)", group = G3)
 
 G4 = "4. Phiên & thời gian (neo giờ New York, tự đổi giờ mùa hè)"
 showSess   = input.bool(true, "Tô nền phiên sáng (Á) / London KZ / New York KZ", group = G4)
@@ -64,8 +66,8 @@ vpBins     = input.int(70, "Volume Profile: số mức giá", minval = 20, maxva
 vpWidth    = input.int(40, "Volume Profile: độ rộng (nến)", minval = 10, maxval = 150, group = G5)
 
 G6 = "6. Dấu chân cá mập & SMT"
-oiSym      = input.symbol("OKX:BTCUSDT.P_OI", "Open Interest", group = G6)
-spotSym    = input.symbol("OKX:BTCUSDT", "Spot (tính basis ≈ funding)", group = G6)
+oiIn       = input.string("AUTO", "Open Interest (AUTO = mã chart + _OI)", group = G6)
+spotIn     = input.string("AUTO", "Spot cùng sàn (AUTO = mã chart bỏ .P)", group = G6)
 cbSym      = input.symbol("COINBASE:BTCUSD", "Coinbase (premium)", group = G6)
 ethSym     = input.symbol("OKX:ETHUSDT.P", "ETH (SMT)", group = G6)
 ltfDelta   = input.timeframe("1", "Khung con tính CVD (taker ước lượng)", group = G6)
@@ -122,6 +124,9 @@ barsFor(float hours) => math.max(1, int(math.round(hours * 3600.0 / timeframe.in
 n4  = barsFor(4)
 n8  = barsFor(8)
 n24 = barsFor(24)
+
+oiSym   = oiIn == "AUTO" ? syminfo.tickerid + "_OI" : oiIn
+spotSym = spotIn == "AUTO" ? syminfo.prefix + ":" + str.replace(syminfo.ticker, ".P", "") : spotIn
 
 inS(string s) => not na(time(timeframe.period, s + ":1234567", TZ))
 
@@ -486,6 +491,13 @@ if nEnd
     addLiq("NY L", nLo, -1, nT)
 
 // Đỉnh/đáy bằng nhau (EQH/EQL) theo swing khung vùng
+eqExists(int side, float lv) =>
+    bool f = false
+    for q in liqs
+        if q.side == side and str.startswith(q.name, "EQ") and not q.swept and math.abs(q.price - lv) / lv * 100 <= eqTol
+            f := true
+    f
+
 var array<float> hSwP = array.new<float>()
 var array<int>   hSwT = array.new<int>()
 var array<float> lSwP = array.new<float>()
@@ -497,7 +509,8 @@ if htfNew and hNewH == 1
         float pa = hSwP.get(i)
         if math.abs(pa - hLastH) / pa * 100 <= eqTol and hLastHT - hSwT.get(i) >= 3 * htfMs
             float lv = math.max(pa, hLastH)
-            addLiq("EQH $$$ " + fmt0(lv), lv, 1, hSwT.get(i))
+            if not eqExists(1, lv)
+                addLiq("EQH $$$ " + fmt0(lv), lv, 1, hSwT.get(i))
     hSwP.push(hLastH)
     hSwT.push(hLastHT)
     if hSwP.size() > 10
@@ -510,7 +523,8 @@ if htfNew and hNewL == 1
         float pa = lSwP.get(i)
         if math.abs(pa - hLastL) / pa * 100 <= eqTol and hLastLT - lSwT.get(i) >= 3 * htfMs
             float lv = math.min(pa, hLastL)
-            addLiq("EQL $$$ " + fmt0(lv), lv, -1, lSwT.get(i))
+            if not eqExists(-1, lv)
+                addLiq("EQL $$$ " + fmt0(lv), lv, -1, lSwT.get(i))
     lSwP.push(hLastL)
     lSwT.push(hLastLT)
     if lSwP.size() > 10
@@ -1041,15 +1055,17 @@ if barstate.islast
     for q in liqs
         if not na(q.lb)
             q.lb.set_x(time + 6 * tfMs)
-            q.lb.set_text(q.name + " " + fmt0(q.price) + (q.swept ? " swept" : ""))
+            string nm = str.startswith(q.name, "EQ") ? q.name : q.name + " " + fmt0(q.price)
+            q.lb.set_text(q.swept and not showSweptLb ? "" : nm + (q.swept ? " swept" : ""))
             q.lb.set_textcolor(q.swept ? C_GRAY : liqColor(q.side))
 
     // Fibonacci + OTE
     if showFib and not na(fibHi) and not na(fibLo)
         int ft = math.min(hLastHT, hLastLT)
-        for r in array.from(0.5, 0.618, 0.705, 0.79)
-            drawH(fibLv(r), ft, "Fib " + str.tostring(r), color.new(C_GRAY, 30), line.style_dotted)
-        tmpB.push(box.new(math.max(hLastHT, hLastLT), oteHi, time + 6 * tfMs, oteLo, xloc = xloc.bar_time, border_color = color.new(C_YEL, 70), bgcolor = color.new(C_YEL, 92)))
+        if showFibLb
+            for r in array.from(0.5, 0.618, 0.705, 0.79)
+                drawH(fibLv(r), ft, "Fib " + str.tostring(r), color.new(C_GRAY, 30), line.style_dotted)
+        tmpB.push(box.new(math.max(hLastHT, hLastLT), oteHi, time + 6 * tfMs, oteLo, xloc = xloc.bar_time, border_color = color.new(C_YEL, 70), bgcolor = color.new(C_YEL, 92), text = "OTE " + TFH + " " + fmt0(oteLo) + "–" + fmt0(oteHi), text_color = color.new(C_YEL, 20), text_size = size.tiny, text_halign = text.align_right, text_valign = text.align_bottom))
 
     // Key Volume
     if showKV

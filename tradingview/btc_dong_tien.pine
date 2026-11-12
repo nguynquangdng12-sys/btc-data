@@ -16,8 +16,10 @@ C_FG   = #d7dae0
 C_BG   = #0f1117
 
 mode     = input.string("CVD (taker ước lượng)", "Hiển thị", options = ["Volume", "CVD (taker ước lượng)", "Taker mua − bán (cột)", "Open Interest", "Coinbase premium", "Basis perp/spot (≈ funding)"])
-oiSym    = input.symbol("OKX:BTCUSDT.P_OI", "Open Interest")
-spotSym  = input.symbol("OKX:BTCUSDT", "Spot (tính basis)")
+oiIn     = input.string("AUTO", "Open Interest (AUTO = mã chart + _OI)")
+spotIn   = input.string("AUTO", "Spot cùng sàn (AUTO = mã chart bỏ .P)")
+oiSym   = oiIn == "AUTO" ? syminfo.tickerid + "_OI" : oiIn
+spotSym = spotIn == "AUTO" ? syminfo.prefix + ":" + str.replace(syminfo.ticker, ".P", "") : spotIn
 cbSym    = input.symbol("COINBASE:BTCUSD", "Coinbase")
 ltfDelta = input.timeframe("1", "Khung con tính CVD")
 swLen    = input.int(2, "Swing (phân kỳ CVD)", minval = 1)
