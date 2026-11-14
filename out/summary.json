@@ -1,0 +1,874 @@
+{
+ "time_vn": "2026-11-14 23:20",
+ "source": "OKX BTC-USDT-SWAP",
+ "data_updated_utc": "2026-11-14T16:19:47Z",
+ "flow_updated_utc": "2026-11-14T16:19:47Z",
+ "price": 65586.5,
+ "d1_trend": "down",
+ "d1_last_event": {
+  "type": "BOS",
+  "dir": "down",
+  "level": 76260.0,
+  "from": 284,
+  "to": 290
+ },
+ "d1_leg": [
+  76260.0,
+  81199.9
+ ],
+ "equilibrium": 78729.9,
+ "premium_discount": "discount",
+ "h1_trend": "down",
+ "h1_last_events": [
+  {
+   "type": "BOS",
+   "dir": "down",
+   "level": 71200.0,
+   "from": 250,
+   "to": 259
+  },
+  {
+   "type": "BOS",
+   "dir": "down",
+   "level": 68076.9,
+   "from": 274,
+   "to": 285
+  },
+  {
+   "type": "BOS",
+   "dir": "down",
+   "level": 66400.1,
+   "from": 287,
+   "to": 297
+  }
+ ],
+ "killzone_now": null,
+ "mtf": [
+  {
+   "tf": "D1",
+   "trend": "down",
+   "last_event": "BOS ↓ 76,260 (05/11 07:00)",
+   "range": [
+    76260.0,
+    81199.9
+   ],
+   "pos_pct": 0,
+   "pd": "dưới đáy range",
+   "ema_stack": "down",
+   "ema20": 75023.1,
+   "ema50": 77678.5,
+   "rsi14": 21.1
+  },
+  {
+   "tf": "H4",
+   "trend": "down",
+   "last_event": "BOS ↓ 67,445 (14/11 07:00)",
+   "range": [
+    67445.0,
+    76160.0
+   ],
+   "pos_pct": 0,
+   "pd": "dưới đáy range",
+   "ema_stack": "down",
+   "ema20": 69427.3,
+   "ema50": 72340.3,
+   "rsi14": 19.1
+  },
+  {
+   "tf": "H1",
+   "trend": "down",
+   "last_event": "BOS ↓ 66,400 (14/11 21:00)",
+   "range": [
+    66400.1,
+    74789.0
+   ],
+   "pos_pct": 0,
+   "pd": "dưới đáy range",
+   "ema_stack": "down",
+   "ema20": 67173.8,
+   "ema50": 68753.4,
+   "rsi14": 21.8
+  },
+  {
+   "tf": "M15",
+   "trend": "down",
+   "last_event": "BOS ↓ 66,510 (14/11 21:00)",
+   "range": [
+    65030.3,
+    67368.3
+   ],
+   "pos_pct": 24.0,
+   "pd": "discount",
+   "ema_stack": "down",
+   "ema20": 66184.0,
+   "ema50": 66801.0,
+   "rsi14": 34.8
+  },
+  {
+   "tf": "M5",
+   "trend": "down",
+   "last_event": "BOS ↓ 65,766 (14/11 22:05)",
+   "range": [
+    65030.3,
+    66620.3
+   ],
+   "pos_pct": 35.0,
+   "pd": "discount",
+   "ema_stack": "down",
+   "ema20": 65665.3,
+   "ema50": 66124.5,
+   "rsi14": 43.9
+  }
+ ],
+ "mtf_alignment": "5/5",
+ "liquidity": [
+  {
+   "name": "PDH",
+   "price": 71493.6,
+   "side": "H",
+   "swept": false
+  },
+  {
+   "name": "PDL",
+   "price": 67445.0,
+   "side": "L",
+   "swept": true
+  },
+  {
+   "name": "PWH",
+   "price": 81199.9,
+   "side": "H",
+   "swept": false
+  },
+  {
+   "name": "PWL",
+   "price": 74800.1,
+   "side": "L",
+   "swept": true
+  },
+  {
+   "name": "Á H",
+   "price": 68420.7,
+   "side": "H",
+   "swept": false
+  },
+  {
+   "name": "Á L",
+   "price": 66564.9,
+   "side": "L",
+   "swept": true
+  },
+  {
+   "name": "London H",
+   "price": 67487.4,
+   "side": "H",
+   "swept": false
+  },
+  {
+   "name": "London L",
+   "price": 66931.3,
+   "side": "L",
+   "swept": true
+  },
+  {
+   "name": "NY H",
+   "price": 67300.0,
+   "side": "H",
+   "swept": false
+  },
+  {
+   "name": "NY L",
+   "price": 65766.1,
+   "side": "L",
+   "swept": true
+  }
+ ],
+ "eqh": [
+  74823.9,
+  74823.9,
+  74789.0
+ ],
+ "eql": [],
+ "key_volume_h1": {
+  "i": 262,
+  "top": 70286.1,
+  "bot": 68450.0,
+  "vol": 22954.1511,
+  "kind": "đẩy giá giảm",
+  "broken": false,
+  "time_vn": "13/11 10:00"
+ },
+ "key_volume_h4": {
+  "i": 244,
+  "top": 80389.3,
+  "bot": 75511.0,
+  "vol": 82177.9561,
+  "kind": "đẩy giá giảm",
+  "broken": false,
+  "time_vn": "05/11 19:00"
+ },
+ "fib_h1": {
+  "dir": "up",
+  "from_i": 250,
+  "to_i": 292,
+  "levels": {
+   "0": 67487.4,
+   "0.5": 69343.7,
+   "0.618": 69781.7868,
+   "0.705": 70104.783,
+   "0.79": 70420.35399999999,
+   "1": 71200.0
+  },
+  "ote": [
+   69781.7868,
+   70420.35399999999
+  ]
+ },
+ "zones": [
+  {
+   "src": "FVG",
+   "dir": "down",
+   "bot": 65719.5,
+   "top": 65766.1,
+   "mid": 65742.8,
+   "i": 298,
+   "score_auto": 1,
+   "why": [
+    "FVG H1"
+   ],
+   "extra_confluence": [],
+   "dist_pct": 0.24
+  },
+  {
+   "src": "FVG",
+   "dir": "down",
+   "bot": 66030.0,
+   "top": 66509.9,
+   "mid": 66269.9,
+   "i": 297,
+   "score_auto": 1,
+   "why": [
+    "FVG H1"
+   ],
+   "extra_confluence": [],
+   "dist_pct": 1.04
+  },
+  {
+   "src": "FVG",
+   "dir": "down",
+   "bot": 66851.2,
+   "top": 66886.4,
+   "mid": 66868.8,
+   "i": 296,
+   "score_auto": 1,
+   "why": [
+    "FVG H1"
+   ],
+   "extra_confluence": [],
+   "dist_pct": 1.96
+  }
+ ],
+ "vwap": {
+  "day": 66630.6,
+  "week": 71408.4,
+  "anchored_d1_leg": {
+   "anchor_vn": "04/11",
+   "value": 73920.3,
+   "base": "H1"
+  }
+ },
+ "volume_profile": {
+  "H1_5d": {
+   "poc": 73693.1,
+   "vah": 75396.0,
+   "val": 68732.3,
+   "hvn": [
+    68954.5,
+    73693.1
+   ],
+   "lvn": [
+    66289.0,
+    67769.8,
+    69842.9,
+    70435.3,
+    72508.4
+   ]
+  },
+  "M15_24h": {
+   "poc": 67240.1,
+   "vah": 67546.1,
+   "val": 65370.3
+  }
+ },
+ "rsi_divergence": {
+  "H1": [],
+  "M15": [
+   {
+    "type": "bullish",
+    "text": "giá LL nhưng RSI HL (phân kỳ tăng)",
+    "i": [
+     287,
+     296
+    ],
+    "price": [
+     66509.9,
+     65030.3
+    ]
+   }
+  ]
+ },
+ "smt": {
+  "H1": [],
+  "M15": []
+ },
+ "vsa": {
+  "H1": [
+   {
+    "i": 261,
+    "time_vn": "13/11 09:00",
+    "price": 70207.5,
+    "x_sma": 2.4,
+    "kind": "đẩy giá giảm",
+    "bias": -1,
+    "tag": ""
+   },
+   {
+    "i": 262,
+    "time_vn": "13/11 10:00",
+    "price": 68927.1,
+    "x_sma": 3.6,
+    "kind": "đẩy giá giảm",
+    "bias": -1,
+    "tag": ""
+   },
+   {
+    "i": 285,
+    "time_vn": "14/11 09:00",
+    "price": 67654.6,
+    "x_sma": 2.4,
+    "kind": "đẩy giá giảm",
+    "bias": -1,
+    "tag": ""
+   },
+   {
+    "i": 297,
+    "time_vn": "14/11 21:00",
+    "price": 65894.3,
+    "x_sma": 3.5,
+    "kind": "đẩy giá giảm",
+    "bias": -1,
+    "tag": ""
+   },
+   {
+    "i": 298,
+    "time_vn": "14/11 22:00",
+    "price": 65714.3,
+    "x_sma": 3.6,
+    "kind": "hấp thụ bán (râu dưới dài)",
+    "bias": 1,
+    "tag": ""
+   }
+  ],
+  "M15": [
+   {
+    "i": 287,
+    "time_vn": "14/11 20:15",
+    "price": 66643.8,
+    "x_sma": 3.4,
+    "kind": "hấp thụ bán (râu dưới dài)",
+    "bias": 1,
+    "tag": "stopping volume tại đáy"
+   },
+   {
+    "i": 290,
+    "time_vn": "14/11 21:00",
+    "price": 66430.3,
+    "x_sma": 4.4,
+    "kind": "đẩy giá giảm",
+    "bias": -1,
+    "tag": "buying climax/upthrust tại đỉnh"
+   },
+   {
+    "i": 291,
+    "time_vn": "14/11 21:15",
+    "price": 66237.6,
+    "x_sma": 4.1,
+    "kind": "hấp thụ bán (râu dưới dài)",
+    "bias": 1,
+    "tag": ""
+   },
+   {
+    "i": 293,
+    "time_vn": "14/11 21:45",
+    "price": 65894.3,
+    "x_sma": 2.6,
+    "kind": "hấp thụ mua (râu trên dài)",
+    "bias": -1,
+    "tag": ""
+   },
+   {
+    "i": 295,
+    "time_vn": "14/11 22:15",
+    "price": 65188.3,
+    "x_sma": 3.6,
+    "kind": "đẩy giá giảm",
+    "bias": -1,
+    "tag": ""
+   },
+   {
+    "i": 296,
+    "time_vn": "14/11 22:30",
+    "price": 65704.5,
+    "x_sma": 2.8,
+    "kind": "đẩy giá tăng",
+    "bias": 1,
+    "tag": "stopping volume tại đáy"
+   }
+  ]
+ },
+ "wyckoff": {
+  "phase": "Markdown – giá đã thoát range xuống",
+  "h4_range": [
+   72688.0,
+   81199.9
+  ],
+  "range_width_pct": 11.1,
+  "prior_trend": "giảm",
+  "note": "ước lượng tự động từ D1/H4"
+ },
+ "po3": {
+  "daily_open": 68286.7,
+  "price_vs_open_pct": -3.95,
+  "text": "ngày đang GIẢM (giá dưới mở cửa); đã phá đáy phiên Á và giữ dưới giá mở cửa → ngày giảm (PO3 giảm nếu đỉnh ngày đã hình thành) · đã quét: Á L, London L, NY L"
+ },
+ "time": {
+  "now_vn": "2026-11-14 23:20",
+  "in_window": null,
+  "window_end_vn": null,
+  "window_end_utc": null,
+  "next_window": {
+   "name": "Phiên sáng (Á)",
+   "start_vn": "07:00",
+   "end_vn": "11:00",
+   "in_min": 459
+  },
+  "silver_bullet_now": null,
+  "macro_now": null,
+  "windows_today_vn": [
+   "New York KZ 19:00–22:00",
+   "Silver Bullet AM 22:00–23:00",
+   "Silver Bullet PM 02:00–03:00",
+   "Phiên sáng (Á) 07:00–11:00",
+   "London KZ 14:00–17:00",
+   "Silver Bullet London 15:00–16:00"
+  ],
+  "opens": {
+   "Mở cửa ngày (07:00 VN)": 68286.7,
+   "NY midnight open": 67059.0,
+   "NY 08:30 open": 66643.7,
+   "Mở cửa tuần": 74818.1,
+   "Mở cửa tháng": 77520.9
+  },
+  "news_upcoming": [],
+  "news_block": [],
+  "no_trade_news": false,
+  "next_big_news": null,
+  "funding_next_vn": "07:00",
+  "funding_in_min": 459,
+  "day_of_week": "Thứ Bảy: cuối tuần: thanh khoản mỏng, hạn chế giao dịch"
+ },
+ "footprint": {
+  "score": -3,
+  "signals": [
+   {
+    "name": "OI 4h",
+    "sign": 0,
+    "text": "OI -0.89%, giá -2.35% → giá↓ OI↓: long xả/bị thanh lý, đà giảm kém bền"
+   },
+   {
+    "name": "CVD 4h",
+    "sign": -1,
+    "text": "taker ròng 4h -1,092 BTC (24h -3,681) → phe bán chủ động áp đảo"
+   },
+   {
+    "name": "Funding",
+    "sign": 0,
+    "text": "0.0042%/8h (TB 7 ngày 0.0054%) → funding bình thường"
+   },
+   {
+    "name": "Long/Short",
+    "sign": -1,
+    "text": "top trader (vị thế) 0.89 (-0.1%/24h), đám đông 2.65 (-7.9%/24h) → đám đông nghiêng long rất mạnh (dễ bị quét long)"
+   },
+   {
+    "name": "Thanh lý",
+    "sign": 0,
+    "text": "6h: long bị thanh lý 242.6 BTC, short 28.6 BTC"
+   },
+   {
+    "name": "Coinbase premium",
+    "sign": -1,
+    "text": "-0.261% (TB 24h -0.062%) → Mỹ bán spot / cầu yếu"
+   }
+  ],
+  "info": {
+   "oi": {
+    "1h": {
+     "d_price_pct": 0.61,
+     "d_oi_pct": -0.3,
+     "regime": "OI ít thay đổi",
+     "sign": 0
+    },
+    "4h": {
+     "d_price_pct": -2.35,
+     "d_oi_pct": -0.89,
+     "regime": "giá↓ OI↓: long xả/bị thanh lý, đà giảm kém bền",
+     "sign": 0
+    },
+    "24h": {
+     "d_price_pct": -4.46,
+     "d_oi_pct": -2.44,
+     "regime": "giá↓ OI↓: long xả/bị thanh lý, đà giảm kém bền",
+     "sign": 0
+    }
+   },
+   "oi_btc_now": 33578.0,
+   "taker": {
+    "delta_4h_btc": -1091.7,
+    "delta_24h_btc": -3681.3,
+    "buy_ratio_4h": 0.487
+   },
+   "whale_market_orders_5m": [
+    {
+     "time_vn": "14/11 22:20",
+     "delta_btc": -519.3,
+     "x_median": 14.7
+    },
+    {
+     "time_vn": "14/11 22:25",
+     "delta_btc": 170.6,
+     "x_median": 4.8
+    },
+    {
+     "time_vn": "14/11 22:35",
+     "delta_btc": 291.4,
+     "x_median": 8.2
+    },
+    {
+     "time_vn": "14/11 22:40",
+     "delta_btc": 553.8,
+     "x_median": 15.7
+    },
+    {
+     "time_vn": "14/11 23:05",
+     "delta_btc": -167.8,
+     "x_median": 4.7
+    },
+    {
+     "time_vn": "14/11 23:10",
+     "delta_btc": -172.8,
+     "x_median": 4.9
+    }
+   ],
+   "funding": {
+    "rate_pct": 0.0042,
+    "avg7d_pct": 0.0054
+   },
+   "long_short": {
+    "top_trader_pos": 0.889,
+    "top_trader_pos_24h_chg_pct": -0.1,
+    "all_accounts": 2.648,
+    "all_accounts_24h_chg_pct": -7.9,
+    "top_trader_acc": 1.949
+   },
+   "liquidations": {
+    "covers_hours": 12.8,
+    "1h": {
+     "long_btc": 99.9,
+     "short_btc": 28.4
+    },
+    "4h": {
+     "long_btc": 242.6,
+     "short_btc": 28.6
+    },
+    "24h": {
+     "long_btc": 295.7,
+     "short_btc": 43.7
+    },
+    "largest": [
+     {
+      "time_vn": "14/11 22:20",
+      "px": 65392.3,
+      "btc": 14.97,
+      "pos": "long"
+     },
+     {
+      "time_vn": "14/11 11:13",
+      "px": 66466.4,
+      "btc": 10.0,
+      "pos": "long"
+     },
+     {
+      "time_vn": "14/11 20:03",
+      "px": 66850.7,
+      "btc": 5.79,
+      "pos": "long"
+     },
+     {
+      "time_vn": "14/11 11:13",
+      "px": 66563.6,
+      "btc": 5.59,
+      "pos": "long"
+     },
+     {
+      "time_vn": "14/11 21:26",
+      "px": 65972.9,
+      "btc": 5.44,
+      "pos": "long"
+     }
+    ],
+    "clusters": [
+     {
+      "price_bin": 65300,
+      "pos": "long",
+      "btc": 31.9
+     },
+     {
+      "price_bin": 65100,
+      "pos": "long",
+      "btc": 28.2
+     },
+     {
+      "price_bin": 66200,
+      "pos": "long",
+      "btc": 23.5
+     },
+     {
+      "price_bin": 66600,
+      "pos": "long",
+      "btc": 22.2
+     }
+    ]
+   },
+   "orderbook": {
+    "mid": 65502.6,
+    "bid_walls": [
+     [
+      65450.0,
+      248.9
+     ],
+     [
+      65400.0,
+      220.1
+     ],
+     [
+      65350.0,
+      138.3
+     ]
+    ],
+    "ask_walls": [
+     [
+      65550.0,
+      199.4
+     ],
+     [
+      65600.0,
+      176.4
+     ],
+     [
+      65500.0,
+      142.6
+     ]
+    ],
+    "imbalance_0_5pct": 0.462,
+    "depth_pct": [
+     -1.33,
+     1.37
+    ]
+   },
+   "coinbase_premium": {
+    "now_pct": -0.261,
+    "avg24h_pct": -0.062
+   }
+  }
+ },
+ "atr_h1": 589.9,
+ "atr_m5": 287.2,
+ "funding_rate": 4.23315644652e-05,
+ "open_interest_btc": 33553.73240000016,
+ "signal": null,
+ "capital_assumed": 1000,
+ "m15_trend": "down",
+ "m15_range": [
+  65030.3,
+  67368.3,
+  66199.3
+ ],
+ "m15_setup": {
+  "kind": "live",
+  "dir": "SHORT",
+  "entry": 66669.0,
+  "sl": 67724.3,
+  "tp1": 64558.4,
+  "tp2": null,
+  "rr_tp2": null,
+  "risk_pct_price": 1.583,
+  "sl_before_liq_60x": false,
+  "size_btc_2pct": 0.019,
+  "size_btc_5pct": 0.0474,
+  "contracts_2pct": 1,
+  "contracts_5pct": 4,
+  "note": "quét NY H → BOS M15 + FVG",
+  "poi": [
+   66620.3,
+   66717.7
+  ],
+  "in_killzone": null,
+  "dist_pct": 1.65,
+  "chased": true,
+  "valid": false,
+  "mss_i": 290,
+  "fvg_i": 290
+ },
+ "m15_checklist": {
+  "passed": 3,
+  "total": 8,
+  "checks": {
+   "zone_h1": {
+    "ok": false,
+    "text": "entry không nằm trong vùng H1 có điểm"
+   },
+   "mtf": {
+    "ok": true,
+    "text": "5/5 khung cùng hướng D1"
+   },
+   "time": {
+    "ok": false,
+    "score": 0,
+    "text": "ngoài cửa sổ phiên"
+   },
+   "footprint": {
+    "ok": true,
+    "score": -3,
+    "text": "điểm dòng tiền -3 → ủng hộ"
+   },
+   "smt_div": {
+    "ok": false,
+    "text": "NGƯỢC: giá LL nhưng RSI HL (phân kỳ tăng)"
+   },
+   "pd_d1": {
+    "ok": false,
+    "text": "giá đang ở discount của con sóng D1 (Short nên ở premium, Long ở discount)"
+   },
+   "vwap": {
+    "ok": true,
+    "text": "entry trên VWAP ngày 66,631"
+   },
+   "volume_profile": {
+    "ok": false,
+    "text": "không trùng mức VP"
+   }
+  },
+  "hard_rules": {
+   "d1_direction": true,
+   "rr_tp2_ge_2": false,
+   "risk_lt_1_2pct": false,
+   "not_chased": false,
+   "no_big_news_30m": true
+  },
+  "hard_ok": false
+ },
+ "m15_last_events": [
+  {
+   "type": "BOS",
+   "dir": "up",
+   "level": 67246.0,
+   "from": 270,
+   "to": 273
+  },
+  {
+   "type": "CHoCH",
+   "dir": "down",
+   "level": 67065.5,
+   "from": 280,
+   "to": 285
+  },
+  {
+   "type": "BOS",
+   "dir": "down",
+   "level": 66509.9,
+   "from": 287,
+   "to": 290
+  }
+ ],
+ "plan_tracking": [
+  {
+   "created_vn": "14/11 19:56",
+   "dir": "SHORT",
+   "entry": 67178.8,
+   "sl": 67380.6,
+   "tp1": 66775.2,
+   "tp2": null,
+   "window": "New York KZ",
+   "status": "HẾT HẠN: không khớp trong phiên",
+   "at_vn": "14/11 22:00"
+  },
+  {
+   "created_vn": "14/11 20:46",
+   "dir": "SHORT",
+   "entry": 67039.9,
+   "sl": 67322.3,
+   "tp1": 66474.9,
+   "tp2": null,
+   "window": "New York KZ",
+   "status": "HẾT HẠN: không khớp trong phiên",
+   "at_vn": "14/11 22:00"
+  },
+  {
+   "created_vn": "14/11 21:16",
+   "dir": "SHORT",
+   "entry": 66582.9,
+   "sl": 67909.6,
+   "tp1": 63929.6,
+   "tp2": null,
+   "window": "New York KZ",
+   "status": "HẾT HẠN: không khớp trong phiên",
+   "at_vn": "14/11 22:00"
+  },
+  {
+   "created_vn": "14/11 21:21",
+   "dir": "SHORT",
+   "entry": 66669.0,
+   "sl": 67916.8,
+   "tp1": 64173.4,
+   "tp2": null,
+   "window": "New York KZ",
+   "status": "HẾT HẠN: không khớp trong phiên",
+   "at_vn": "14/11 22:00"
+  },
+  {
+   "created_vn": "14/11 22:01",
+   "dir": "SHORT",
+   "entry": 66669.0,
+   "sl": 67680.6,
+   "tp1": 64645.8,
+   "tp2": null,
+   "window": "Phiên sáng (Á)",
+   "status": "CHỜ KHỚP (chỉ vào trong Phiên sáng (Á))",
+   "at_vn": null
+  },
+  {
+   "created_vn": "14/11 22:35",
+   "dir": "SHORT",
+   "entry": 65406.8,
+   "sl": 67677.1,
+   "tp1": 60866.2,
+   "tp2": null,
+   "window": "Phiên sáng (Á)",
+   "status": "BỎ: giá chạm entry trước giờ phiên (không vào lệnh)",
+   "at_vn": "14/11 22:40"
+  }
+ ],
+ "conclusion": "TÍN HIỆU SHORT M15 (CHƯA HỢP LỆ)",
+ "chart_errors": []
+}
