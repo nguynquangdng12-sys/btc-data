@@ -1,9 +1,9 @@
 {
  "source": "OKX BTC-USDT-SWAP",
- "updated_utc": "2026-11-27T13:21:23Z",
- "last_close": 61385.1,
+ "updated_utc": "2026-11-27T13:35:27Z",
+ "last_close": 61401.8,
  "errors_before_success": [],
- "funding_rate": 3.2070874033e-06,
+ "funding_rate": 8.8539885752e-06,
  "next_funding_time": 1795795200000,
- "open_interest_btc": 31997.8034000001
+ "open_interest_btc": 32231.0907000001
 }
