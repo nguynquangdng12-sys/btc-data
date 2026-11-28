@@ -1,0 +1,60 @@
+{
+"source": "ForexFactory",
+"fetched_utc": "2026-11-28T12:51:01Z",
+"events": [
+{
+"title": "Flash Manufacturing PMI",
+"country": "USD",
+"impact": "Medium",
+"date": "2026-11-23T09:45:00-05:00",
+"forecast": "54.5",
+"previous": "56.0",
+"actual": null
+},
+{
+"title": "Flash Services PMI",
+"country": "USD",
+"impact": "Medium",
+"date": "2026-11-23T09:45:00-05:00",
+"forecast": "55.6",
+"previous": "57.9",
+"actual": null
+},
+{
+"title": "CB Consumer Confidence",
+"country": "USD",
+"impact": "Medium",
+"date": "2026-11-24T10:00:00-05:00",
+"forecast": "92.4",
+"previous": "91.7",
+"actual": null
+},
+{
+"title": "Core PCE Price Index m/m",
+"country": "USD",
+"impact": "High",
+"date": "2026-11-25T08:30:00-05:00",
+"forecast": "0.3%",
+"previous": "0.3%",
+"actual": null
+},
+{
+"title": "Prelim GDP q/q",
+"country": "USD",
+"impact": "High",
+"date": "2026-11-25T08:30:00-05:00",
+"forecast": "3.5%",
+"previous": "3.4%",
+"actual": null
+},
+{
+"title": "Prelim GDP Price Index q/q",
+"country": "USD",
+"impact": "Medium",
+"date": "2026-11-25T08:30:00-05:00",
+"forecast": "2.3%",
+"previous": "2.3%",
+"actual": null
+}
+]
+}
